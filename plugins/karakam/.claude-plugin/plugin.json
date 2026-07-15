@@ -1,0 +1,18 @@
+{
+  "name": "karakam",
+  "description": "Hacivat & Karagöz — an autonomous plan-and-build pair. Hacivat turns a large job into a plan hardened by a four-lens critic panel; Karagöz executes it in a /loop, one step per tick, with adversarial Observers auditing every step.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Aziz Murat Yıldız"
+  },
+  "homepage": "https://github.com/azizi2407/karakam",
+  "repository": "https://github.com/azizi2407/karakam",
+  "license": "MIT",
+  "keywords": [
+    "autonomous",
+    "planning",
+    "sub-agents",
+    "orchestration",
+    "loop"
+  ]
+}
