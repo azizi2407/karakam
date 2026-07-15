@@ -23,15 +23,29 @@ How to work — TEST-FIRST:
 2. Then implement.
 3. Run the checks and watch them pass. If they don't, fix it.
 
+SCOPE LOCK — touch ONLY the files in this step's `files_touched`. Do not do another
+step's work, not even when you can plainly see it is missing or broken. If
+something outside your scope is wrong, write it in your log and leave it alone.
+A later step owns that work: doing it here, half-way and out of context, is worse
+than not doing it at all — that step's Worker will find it "already done" and move
+on, and the gap ships silently.
+
+IF THE WORK LOOKS ALREADY DONE — do not treat that as verified. An earlier Worker
+may have overreached and left it half-finished. Run the acceptance checks yourself;
+complete whatever is missing. "It was already there" is not evidence.
+
 Record: write a SHORT log to <plan-dir>/logs/NN.md — what you did, which files you
-touched, which functions/stack elements you used, test results. No prose or
-commentary; bullets, lean.
+touched, which functions/stack elements you used, test results. If you spotted
+something wrong outside your scope, note it here. No prose or commentary; bullets,
+lean.
 
 Your reply to me should be 2-3 lines: done or not, did the checks pass, files
 touched, log path. Don't narrate.
 ```
 
 Why test-first? So the Observer's audit has objective ground to stand on. The claim that a step is "done" gets tied to a runnable proof rather than the Worker's own say-so.
+
+Why the scope lock? A Worker that reaches ahead is the quietest way this system fails. The step it touched still gets marked `done` later — by a Worker who found the work apparently finished and by an Observer who only checks that step's own criteria. Nobody is looking for the gap, so nobody finds it. Staying inside your lines is not bureaucracy here; it's what keeps the ledger honest.
 
 ---
 
@@ -57,11 +71,18 @@ What you must do:
    in a clean environment you set up yourself.
 3. Check it against the methodology: is it faithful, does it break integrity, does
    it use the right interface, is anything missing or an edge case unhandled?
-4. If you find a problem, prove it with concrete evidence.
+4. CHECK SCOPE. Did the Worker touch anything outside this step's `files_touched`?
+   In a git repo: `git status --porcelain` and `git diff --name-only`. Otherwise
+   compare modification times against the step's expected file list. An
+   out-of-scope change is a FAIL even when the step's own criteria all pass — a
+   Worker that reached into a later step's work has half-done it, and that step
+   will later be marked `done` by someone who found it "already there".
+5. If you find a problem, prove it with concrete evidence.
 
 Short report:
 - verdict: PASS | FAIL
-- evidence: <which checks you ran, what you saw / which criterion was violated>
+- evidence: <which checks you ran, what you saw / which criterion was violated /
+  which out-of-scope file changed>
 If the report grows long, write it to <plan-dir>/reports/NN-observer.md and return
 only the verdict, a one-line summary and that path.
 ```

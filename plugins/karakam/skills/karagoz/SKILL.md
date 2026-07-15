@@ -52,6 +52,8 @@ Do **not** open `steps/NN.md` — you take the model and the criticality flag fr
 ### 2. Send the Worker out
 Spawn a Worker sub-agent using the step's `steps/NN.md` path and the model from `progress.md` (Agent tool, `model` = the step's model). The Worker works **test-first**: it turns the acceptance criteria into checks, implements, makes the checks pass, and writes a short log to `logs/NN.md`. It returns 2-3 lines to you. Template: `references/worker-observer.md`.
 
+**One step in flight at a time.** The tick is built around a single step for a reason: the moment two Workers run concurrently, you can no longer tell who touched what, and the Observer's scope check (the thing that catches a Worker reaching into a later step's work) loses its ground truth. If you batch steps for speed, you trade away the guarantee that keeps the ledger honest. Two Observers auditing *the same* step in parallel is fine — that's the double-Observer design. Two *steps* moving at once is not.
+
 If you're waiting on the Worker synchronously, don't update `progress.md` yet — you'll write the result in a moment anyway, and the interim write is wasted. Only if the tick might be cut short (a very long step, a background spawn) drop a "worker running" note so the next tick can tell what happened.
 
 ### 3. Have the Observer audit it
@@ -86,6 +88,7 @@ The line is clear: **you fix a proven single-step spec fault; you do not write p
 ### 5. Guard: smart continuation
 If the step still `FAIL`s after the max refactor rounds:
 - Mark it `blocked`, note the reason plus the report path.
+- **Account for the leftovers.** A Worker that failed usually left half-finished changes on disk. Those are now a trap: a later step will read them as "the current state". If the project is a git repo, revert them (`git checkout -- <files>` / `git clean -fd <paths>` scoped to the step's `files_touched`) so the tree returns to a known state. If it isn't, or if reverting would destroy work worth keeping, write the leftovers explicitly into the `progress.md` note — *"half-finished changes on disk: <files>"* — so nothing downstream is blind to them.
 - **Don't stop.** Steps that `depends_on` it already wait automatically (their dependency isn't `done`). Independent steps keep going — the next tick picks them up.
 - Tick ends.
 

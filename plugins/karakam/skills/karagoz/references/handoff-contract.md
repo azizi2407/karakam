@@ -100,8 +100,10 @@ Sequence number alone is not a reason.
 
 ## Outputs
 log: logs/NN.md          # the Worker records its work here
-files_touched: <expected file list>
+files_touched: <the exact files this step may write to>
 ```
+
+**`files_touched` is a scope contract, not documentation.** The Worker is forbidden from touching anything outside it, and the Observer fails the step if something else changed. So list it precisely: too narrow and honest work gets rejected; too wide (or vague, like "the whole module") and you hand a Worker license to wander into a later step's territory — half-doing work that will then be marked `done` by whoever finds it "already there". If two steps genuinely must write to the same file, that's a real dependency: say so in `depends_on` so they run in sequence.
 
 ---
 
