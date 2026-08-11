@@ -79,3 +79,5 @@ With scores alone, a model can shrug and say "8.5 is good enough" while a critic
 ## What the panel cannot do
 
 The panel reads the plan, not the running system. Some faults only surface during execution — a spec that looks perfectly reasonable but orders the wrong thing. That is precisely why Karagöz has an adversarial Observer, and why critical steps get two. Don't try to buy that certainty with more panel rounds; it isn't for sale there.
+
+Also: a lens never executes anything, unlike Karagöz's Observer. Its **score** is a self-assessed confidence, not a measured guarantee — treat critical/major objections as the hard signal (they're concrete and checkable), and treat a high aggregate score only as "this lens found nothing else to flag," not as proof the plan is correct. That proof only comes later, from an Observer running real checks against real output.

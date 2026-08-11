@@ -66,10 +66,12 @@ Improve the plan from the panel's output, re-criticize, climb:
 While refining, **do not rewrite the whole plan**: edit only the affected `steps/NN.md` files with `Edit`. Rewriting from scratch (output tokens) is the biggest hidden cost.
 
 ### 5. Finish the handoff files
-Once the plan has settled, build the `progress.md` skeleton (all steps `pending`) and verify every file is consistent. Schema: `references/handoff-contract.md`.
+Before writing anything, check whether the output directory already exists. If it does and its `progress.md` shows any step not `pending` (a previous run made real progress there), don't overwrite it — ask the user whether to archive the old plan (e.g. move it to `plan-old-1/`) or pick a different output path. An empty directory, or one whose `progress.md` is still all-`pending` from an aborted planning attempt, is safe to overwrite.
+
+Once the plan has settled, build the `progress.md` skeleton (all steps `pending`) and verify every file is consistent — in particular that `model` and `critical` match exactly between each `steps/NN.md` and its `progress.md` row. Schema: `references/handoff-contract.md`.
 
 ### 6. Present, get approval, hand over
-Give the user a **short summary** of the refined plan (step count, key decisions, risks). Get approval. Once approved, hand them the transfer template:
+Give the user a **short summary** of the refined plan (step count, key decisions, risks) plus a rough order-of-magnitude token estimate for *execution* (not just the planning you already spent): roughly `steps × (1 Worker + 1–2 Observers)` calls, doubled again for every `critical` step. You don't need precision — the point is letting the user judge whether a 20-step, half-critical plan is a light afternoon loop or a genuinely expensive multi-hour run before they commit to it. Get approval. Once approved, hand them the transfer template:
 
 ```
 ✅ Plan ready: <N> steps, output directory ./<project>/plan/
@@ -90,7 +92,7 @@ The lifeblood of this system is Karagöz being able to spin for hours without co
 
 - **Write step files self-contained.** Each `steps/NN.md` should embed the slice of the methodology relevant to that step. That way Karagöz's Worker/Observer never re-read the whole `methodology.md` — one file suffices. This kills the single biggest repeated read in every step call.
 - **Keep worker prompts lean.** Instruct the Worker: "no commentary or summaries, just code plus a short log." Prose generation is pure token waste.
-- **Draw each step's `files_touched` precisely.** It isn't documentation — Karagöz enforces it as a scope boundary: the Worker may touch nothing else, and the Observer fails the step if something else changed. A vague or over-wide list gives a Worker license to wander into a later step's work and half-do it; that step then gets marked `done` by whoever finds it "already there", and the gap ships silently. If two steps must write the same file, that's a real dependency — put it in `depends_on`.
+- **Draw each step's `files_touched` precisely.** It isn't documentation — Karagöz enforces it as a scope boundary: the Worker may touch nothing else, and the Observer fails the step if something else changed. A vague or over-wide list gives a Worker license to wander into a later step's work and half-do it; that step then gets marked `done` by whoever finds it "already there", and the gap ships silently. If two steps must write the same file, that's a real dependency — put it in `depends_on`. There's a second reason to keep this precise now: Karagöz may run steps with disjoint `files_touched` in parallel, in isolated worktrees — a spuriously wide list is also what would make two genuinely independent steps look like they collide, forcing needless serialization.
 - **Write acceptance criteria as executable checks.** Karagöz works test-first; "done" must mean a check that runs.
 - **Write acceptance criteria that can't be gamed.** This is different from — and harder than — being executable. A Worker wants to pass your criterion; leave a shortcut and it will find one, staging the very state the test should prove ("seeding" it) so the check goes green while the real path never runs. As you write each criterion, ask: *"Could a Worker satisfy this without ever exercising the actual behavior?"* If yes, the criterion is weak. Ways to close it: ban the shortcut explicitly ("do not create the file by hand; start from empty"), demand an observable side effect ("after the POST, the stamp file must exist"), and use **signals that cannot be faked, like timing or ordering** ("the second request must return in under 1s" — because if it was truly short-circuited it's fast, and if it wasn't it hits the timeout).
 
@@ -99,8 +101,9 @@ The lifeblood of this system is Karagöz being able to spin for hours without co
 You assign the Worker model for every step (Karagöz obeys it):
 - **Opus** → architectural decisions, algorithms, multi-file/cross-cutting work, critical integrations.
 - **Sonnet** → plain CRUD, boilerplate, single-file, well-specified mechanical work.
+- **Haiku** → trivial, single-fact mechanical edits (a version bump, a renamed identifier, a config value) where no real judgment is needed. If unsure, use sonnet — misjudging this costs little; misjudging opus-vs-sonnet costs a redo.
 
-Also mark each step `kritik: true/false` (critical) — Karagöz double-checks critical steps with a second, differently-lensed Observer.
+Also mark each step `critical: true/false` — Karagöz double-checks critical steps with a second, differently-lensed Observer.
 
 ## Reference files
 
