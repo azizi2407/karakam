@@ -1,3 +1,5 @@
+**English** · [Türkçe](README.tr.md)
+
 # Hacivat & Karagöz
 
 An autonomous **plan-and-build pair** for Claude Code.
@@ -118,7 +120,7 @@ On a large autonomous job that's a bargain — a broken plan means hours of wron
 
 ## Language
 
-The skills' instructions are in English, but **everything they produce follows you**: the plan, the step files, the worker prompts and the conversation are written in whatever language you're speaking. Structural keywords (`depends_on`, `model`, `kritik`, `pending`/`done`/`refactoring`/`blocked`) stay in place — both halves parse them.
+The skills' instructions are in English, but **everything they produce follows you**: the plan, the step files, the worker prompts and the conversation are written in whatever language you're speaking. Structural keywords (`depends_on`, `model`, `critical`, `pending`/`done`/`refactoring`/`blocked`) stay in place — both halves parse them.
 
 ## License
 
