@@ -44,12 +44,12 @@ Break these and the loop cannot run long. Guarding them is your most important j
 If you need the handoff contract: `references/handoff-contract.md` (identical to Hacivat's). Worker/Observer prompt templates: `references/worker-observer.md`.
 
 ### 0. Crash recovery check
-Before picking anything, scan `progress.md` for a step still marked `in_progress`. That status is only ever set by a tick right before it spawns a Worker, and cleared before that tick ends — so finding one at the *start* of a fresh tick means the tick that set it never finished (crashed, was killed, ran out of turns). Recover before doing anything else:
+Before picking anything, scan `progress.md` for a step still marked `in_progress` **or `refactoring`**. `in_progress` is only ever set by a tick right before it spawns a Worker, and cleared before that tick ends. `refactoring` is just as tick-local — a refactor cycle (Worker → Observer, up to ~3 rounds) runs start-to-finish inside one tick and is cleared to `done` or `blocked` before that tick ends. So finding either status still set at the *start* of a fresh tick means the tick that owned it never finished (crashed, was killed, ran out of turns). Treat both the same way — a stale `refactoring` row is invisible to step 1 (eligible = `pending` only), so skipping it here would deadlock that step silently forever. Recover before doing anything else:
 
-- **Ran in an isolated worktree** (parallel batch, step 2): the shared tree was never touched. Just `git worktree remove --force <plan-dir>/.worktrees/NN` and set the step back to `pending`.
-- **Ran directly in the project root:** treat it like a step that failed before reaching its refactor rounds. If this is a git repo, revert exactly its `files_touched` (`git checkout -- <files>`, and if needed `git clean -fd <literal files_touched paths>` — never a directory wildcard, only the exact paths). If it isn't a git repo, or reverting would destroy work worth keeping, leave the files and write them into the note instead. Either way, set the step back to `pending` and note "recovered from an interrupted tick."
+- **Ran in an isolated worktree** (parallel batch, step 2): the shared tree was never touched. Just `git worktree remove --force <plan-dir>/.worktrees/NN`, delete its branch (`git branch -D karagoz-step-NN`), and set the step back to `pending`.
+- **Ran directly in the project root:** treat it like a step that failed before reaching its refactor rounds. If this is a git repo, revert exactly its `files_touched` (`git checkout -- <files>`, and if needed `git clean -fd <literal files_touched paths>` — never a directory wildcard, only the exact paths). This is safe precisely because every `done` step is committed on PASS (step 4): the checkout can only ever discard this interrupted step's own uncommitted work, never an earlier step's. If it isn't a git repo, or reverting would destroy work worth keeping, leave the files and write them into the note instead. Either way, set the step back to `pending` and note "recovered from an interrupted tick."
 
-There should normally be at most one `in_progress` step (or several, if the crashed tick was mid-parallel-batch) — recover each the same way. Only once none remain do you move to step 1.
+There should normally be at most one `in_progress`/`refactoring` step (or several, if the crashed tick was mid-parallel-batch) — recover each the same way. Only once none remain do you move to step 1.
 
 ### 1. Read the status, pick the next step(s)
 Read `progress.md` — the **only** file you read this tick (the crash-recovery scan above is reading the ledger, not the plan). An **eligible step** = status `pending` AND every `depends_on` step is `done`. The table row gives you everything you need: step number, `model`, `critical`, file path.
@@ -66,11 +66,12 @@ Do **not** open `steps/NN.md` — you take the model and the criticality flag fr
 - **Only one eligible step** → spawn its Worker directly in the project root, exactly as before. Skip the parallel machinery below.
 - **Several eligible** → check whether their `files_touched` lists are pairwise disjoint (no path appears in two steps' lists).
   - **Disjoint → run them in parallel.** Concurrent Agent calls writing into the *same* working directory would make each other's changes look like scope violations to the Observer, so isolate each one in its own git worktree:
-    1. For each step you're batching: `git worktree add <plan-dir>/.worktrees/NN -b karagoz-step-NN <current-branch>`.
-    2. Spawn each Worker with that worktree as its project root, all **in parallel in a single message**. Tell it to commit its change there when done (`references/worker-observer.md`).
-    3. Each step's Observer (step 3) audits inside that same worktree — the merge to the shared tree hasn't happened yet.
-    4. On **PASS**, merge it back from the main tree: `git merge --no-ff karagoz-step-NN`, then remove the worktree and delete the branch. A merge conflict here means a Worker touched something outside its declared scope despite the disjoint check — treat it as a scope-violation FAIL, don't force it through.
-    5. On **FAIL** (including after exhausting refactor rounds), nothing landed in the shared tree yet — just discard the worktree (`git worktree remove --force`) instead of trying to revert in place.
+    1. **Before creating the first worktree this run**, append `<plan-dir>/.worktrees/` to `.git/info/exclude` if it isn't listed there yet — that's local-only bookkeeping, never the project's tracked `.gitignore`. Otherwise the untracked `.worktrees/` directory shows up in `git status --porcelain` and contaminates every solo-step Observer's scope check back in the shared root.
+    2. For each step you're batching: `git worktree add <plan-dir>/.worktrees/NN -b karagoz-step-NN <current-branch>`.
+    3. Spawn each Worker with that worktree as its project root, all **in parallel in a single message**. Tell it to commit its change there when done (`references/worker-observer.md`).
+    4. Each step's Observer (step 3) audits inside that same worktree — the merge to the shared tree hasn't happened yet.
+    5. On **PASS**, merge it back from the main tree: `git merge --no-ff karagoz-step-NN`, then remove the worktree and delete the branch. A merge conflict here means a Worker touched something outside its declared scope despite the disjoint check — treat it as a scope-violation FAIL, don't force it through.
+    6. On **FAIL** (including after exhausting refactor rounds), nothing landed in the shared tree yet — just discard the worktree (`git worktree remove --force`) and delete its branch (`git branch -D karagoz-step-NN`) instead of trying to revert in place.
   - **Not disjoint → fall back to one at a time**, in step order, exactly like the single-step path. An overlap is an uncaptured dependency Hacivat should have declared in `depends_on`; don't try to fix the plan mid-tick — serialize for safety and note it.
 - **Before spawning any of them**, mark each as `in_progress` in `progress.md` — the one deliberate interim write (see "Why you must stay thin"). Overwrite it with the real outcome once that step closes.
 
@@ -85,11 +86,11 @@ When a Worker is done, spawn its Observer. In parallel-batch mode, audit each fi
 - Model: `haiku` if not critical (cheap and sufficient); `sonnet` if critical.
 
 ### 4. Decide
-- **PASS** → mark the step `done` in `progress.md`, note a short summary. If it ran in a worktree, merge and clean up as described in step 2. Move on to the next finished step in the batch, or end the tick if this was the only one.
+- **PASS** → mark the step `done` in `progress.md`, note a short summary. If it ran in a worktree, merge and clean up as described in step 2. If it ran directly in the project root and this is a git repo, **checkpoint it now**: `git add <files_touched> && git commit -m "karagoz step NN: <title>"`. This isn't optional bookkeeping — two things depend on it: (1) crash recovery (step 0) and blocked-step cleanup (step 5) both revert with `git checkout -- <files>`, which resets to HEAD; if an earlier `done` step touched the same file (legal for sequential steps linked by `depends_on`) and was never committed, that revert silently destroys it while the ledger still calls it done; (2) parallel worktrees branch off the current HEAD, so an uncommitted `done` step is invisible to any Worker running alongside it. Skip the commit for non-git projects, same as elsewhere. Move on to the next finished step in the batch, or end the tick if this was the only one.
 - **FAIL** → first ask **whose fault it is** (next section), then refactor within the step:
-  - Mark the step `refactoring`, increment the refactor counter.
+  - Mark the step `refactoring`, and track the round count in its `progress.md` note column (e.g. `refactor 2/3`) — the Coordinator is stateless, so this note is the only place a recovered tick can see how many rounds are already burned.
   - Hand the Observer's short report (or the `reports/NN-observer.md` path) to a new Worker → let it fix → Observer again. In parallel mode, keep refactoring inside the same worktree.
-  - **At most ~3 rounds.** If it passes → `done` (merge if in a worktree). If not → go to 5.
+  - **At most ~3 rounds.** If it passes → `done` (merge if in a worktree, checkpoint-commit if in the project root — see PASS above). If not → go to 5.
   - If the refactor touched **only a plan/doc file** (the code didn't change), don't re-run the lens that already said `PASS` — its verdict still holds. Only call back the lens that objected. Re-testing unchanged code is pure waste.
 
 ### 4b. Is it the Worker's fault, or the plan's?
@@ -111,8 +112,8 @@ The line is clear: **you fix a proven single-step spec fault; you do not write p
 If the step still `FAIL`s after the max refactor rounds:
 - Mark it `blocked`, note the reason plus the report path.
 - **Account for the leftovers.**
-  - Ran in an isolated worktree → nothing landed in the shared tree; just discard it (`git worktree remove --force`).
-  - Ran directly in the project root and this is a git repo → revert exactly its `files_touched`: `git checkout -- <files>`, and if needed `git clean -fd <literal files_touched paths>` — list the exact paths, never a directory wildcard. A `files_touched` that's too broad turns this into real data loss.
+  - Ran in an isolated worktree → nothing landed in the shared tree; just discard it (`git worktree remove --force`) and delete its branch (`git branch -D karagoz-step-NN`).
+  - Ran directly in the project root and this is a git repo → revert exactly its `files_touched`: `git checkout -- <files>`, and if needed `git clean -fd <literal files_touched paths>` — list the exact paths, never a directory wildcard. A `files_touched` that's too broad turns this into real data loss. This checkout is safe against earlier work precisely because every `done` step was committed on PASS (step 4) — it can only discard this blocked step's own uncommitted changes.
   - Not a git repo, or reverting would destroy work worth keeping → leave it and write the leftovers explicitly into the `progress.md` note — *"half-finished changes on disk: <files>"* — so nothing downstream is blind to them.
 - **Don't stop.** Steps that `depends_on` it already wait automatically (their dependency isn't `done`). Independent steps keep going — the next tick picks them up.
 - Tick ends.

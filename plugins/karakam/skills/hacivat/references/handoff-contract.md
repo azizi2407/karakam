@@ -136,7 +136,7 @@ Status values: `pending` · `in_progress` · `done` · `refactoring` · `blocked
 - `refactoring` — Observer rejected it, being fixed (within the step)
 - `blocked` — failed after the max refactor rounds; its dependents wait
 
-`in_progress` is set by a tick right before it spawns a Worker and cleared before that tick ends. Finding it still set at the *start* of a tick is a crash signal, not a normal state — it means the previous tick never got to close it out.
+`in_progress` is set by a tick right before it spawns a Worker and cleared before that tick ends. Finding it still set at the *start* of a tick is a crash signal, not a normal state — it means the previous tick never got to close it out. The same is true of `refactoring`: a refactor cycle runs start-to-finish within a single tick, so finding it still set at the start of the next one is the identical crash signal, and Karagöz's crash recovery treats both alike.
 
 **Why `model` and `critical` live here:** Karagöz must know the model when spawning a Worker and the criticality flag when setting up the Observer. If that information existed only inside `steps/NN.md`, the Coordinator would have to open the step file every tick — and the "read only progress.md" rule, i.e. the entire context economy, would collapse on the first tick. These values must match `steps/NN.md` exactly; Hacivat writes both.
 
