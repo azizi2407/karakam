@@ -7,7 +7,7 @@ An autonomous **plan-and-build pair** for Claude Code.
 In Turkish shadow play, Hacivat and Karagöz are two halves of the same act: **Hacivat is the educated one — he schemes and puts things into words. Karagöz is the one who actually does the work on the ground.** These two skills split the same way.
 
 - **`hacivat`** turns a large job into a plan that has survived criticism — clarifies the brief, runs a **four-lens critic panel** over the draft, hill-climbs until the objections are gone, assigns a model to every step, and writes the handoff files.
-- **`karagoz`** executes that plan inside a `/loop` — one step per tick, each handed to a **Worker** sub-agent and audited by an adversarial **Observer**, with the status tracked in a ledger.
+- **`karagoz`** executes that plan inside a `/loop` — one step per tick (or several at once when independent), each handed to a **Worker** sub-agent and audited by an adversarial **Observer**, with the status tracked in a ledger.
 
 The point is a job that runs for hours without a human in the loop, and without the context blowing up.
 
@@ -59,7 +59,7 @@ Four roles:
 | Role | Job | Model |
 |---|---|---|
 | **Creator (Hacivat)** | Clarify → plan → critic panel → hill-climb → handoff files. Talks to you. | Opus |
-| **Coordinator (Karagöz)** | One tick = one step to `done`. Picks the step, sends the Worker, calls the Observer, updates the ledger. Writes no code. | Sonnet |
+| **Coordinator (Karagöz)** | One tick = one step (or several independent ones) to `done`. Picks the step(s), sends the Worker(s), calls the Observer(s), updates the ledger. Writes no code. | Sonnet |
 | **Worker** | Executes one step, test-first. Writes a short log. | Assigned per step by Hacivat |
 | **Observer** | Audits the step adversarially — runs the tests itself, tries to refute it. | Haiku / Sonnet |
 
@@ -78,10 +78,14 @@ plan/
 The Coordinator stays **thin**, and everything else follows from that:
 
 - **Pass paths, not contents.** It says "read `steps/03.md`" — it never reads 03.md itself. The Worker opens it in its own isolated context.
-- **Stateless.** Every tick reads the truth fresh from `progress.md`. Nothing accumulates across ticks.
+- **Stateless.** Every tick reads the truth fresh from `progress.md`. Nothing accumulates across ticks — except the `in_progress` mark written right before a Worker is spawned, which exists solely so a tick that dies mid-way can be recovered by the next one.
 - **Short reports.** Workers and Observers return 2–3 lines; long reports go to a file, and only the path comes back.
 
 That's what lets the loop spin for hours instead of collapsing after a few ticks.
+
+### Parallelism on independent steps
+
+Steps whose `files_touched` lists don't overlap can run in the same tick, in parallel — each isolated in its own git worktree, so one Worker's changes never look like a scope violation to another step's Observer. On PASS the worktree merges into the shared tree; on FAIL it's discarded without ever having touched the shared tree. Overlapping `files_touched` still runs one step at a time, in order. A solo step that runs directly in the shared root gets committed there on PASS too — that checkpoint is what keeps crash recovery's `git checkout -- <files>` safe (it can only ever revert this step's own uncommitted work, never an earlier `done` step's) and gives the next parallel batch a correct branch point.
 
 ### Defense in depth — no human required
 
@@ -108,10 +112,10 @@ When a step can't pass after its refactor rounds, the loop doesn't stall waiting
 
 Be honest with yourself about this: it is not cheap.
 
-- One critic panel round ≈ **340k tokens** (4 lenses). The hill-climb allows up to 3 rounds.
+- One critic panel round ≈ **340k tokens** (4 lenses). The hill-climb allows up to 3 rounds. Unlike an Observer, these scores don't run anything — a critical/major objection is the concrete signal; a high score only means "this lens found nothing else to flag."
 - Execution runs roughly **110–140k tokens per step** (Worker + Observer); a critical step with two Observers and a refactor round costs several times that.
 
-On a large autonomous job that's a bargain — a broken plan means hours of wrong output. On a small one it's overkill; use plain Claude Code instead. Hacivat will ask before spending an extra panel round if you're watching the budget.
+On a large autonomous job that's a bargain — a broken plan means hours of wrong output. On a small one it's overkill; use plain Claude Code instead. Hacivat also gives you a rough token estimate for execution when it hands over the plan; if you're watching the budget, it will ask before spending an extra panel round.
 
 ## Requirements
 
@@ -120,7 +124,7 @@ On a large autonomous job that's a bargain — a broken plan means hours of wron
 
 ## Language
 
-The skills' instructions are in English, but **everything they produce follows you**: the plan, the step files, the worker prompts and the conversation are written in whatever language you're speaking. Structural keywords (`depends_on`, `model`, `critical`, `pending`/`done`/`refactoring`/`blocked`) stay in place — both halves parse them.
+The skills' instructions are in English, but **everything they produce follows you**: the plan, the step files, the worker prompts and the conversation are written in whatever language you're speaking. Structural keywords (`depends_on`, `model`, `critical`, `pending`/`in_progress`/`done`/`refactoring`/`blocked`) stay in place — both halves parse them.
 
 ## License
 

@@ -65,8 +65,10 @@ try to show it is WRONG or INCOMPLETE.
 
 Project root: <project root>
 (If this step ran in an isolated worktree, audit inside that worktree — the
- Coordinator gives you its path. The merge back to the shared tree hasn't
- happened yet, so don't look for the change in the shared root.)
+ Coordinator gives you its path, plus the name of the branch it was created
+ from (needed for the scope check in step 4 below). The merge back to the
+ shared tree hasn't happened yet, so don't look for the change in the shared
+ root.)
 Step definition: <plan-dir>/steps/NN.md (especially "Observer checks")
 Worker log: <plan-dir>/logs/NN.md
 
@@ -81,11 +83,18 @@ What you must do:
 3. Check it against the methodology: is it faithful, does it break integrity, does
    it use the right interface, is anything missing or an edge case unhandled?
 4. CHECK SCOPE. Did the Worker touch anything outside this step's `files_touched`?
-   In a git repo: `git status --porcelain` and `git diff --name-only`, run inside
-   the tree you were told to audit (the worktree if one was given — its diff is
-   this step's alone, nothing from any sibling step running in parallel leaks in).
-   Otherwise compare modification times against the step's expected file list. An
-   out-of-scope change is a FAIL even when the step's own criteria all pass — a
+   - **Auditing in a worktree** (parallel batch): the Worker already committed its
+     change before finishing, so a plain `git status --porcelain` / `git diff
+     --name-only` here is clean by construction and proves nothing — you'd be
+     diffing a commit against itself. Diff against the branch point instead:
+     `git diff --name-only $(git merge-base HEAD <base-branch>)..HEAD` (base-branch
+     = the branch the worktree was created from, given to you above), **plus**
+     `git status --porcelain` to catch anything left uncommitted on top.
+   - **Auditing in the shared root** (solo step — the Worker does not commit there):
+     the plain `git status --porcelain` and `git diff --name-only` are correct as
+     they are; nothing else has touched this tree since the Worker started.
+   - Not a git repo: compare modification times against the step's expected file list.
+   An out-of-scope change is a FAIL even when the step's own criteria all pass — a
    Worker that reached into a later step's work has half-done it, and that step
    will later be marked `done` by someone who found it "already there".
 5. If you find a problem, prove it with concrete evidence.
@@ -119,3 +128,4 @@ When spawning these:
 - Worker model = the step's `model` field (`opus`/`sonnet`/`haiku`). Observer model = `sonnet` if critical, `haiku` if not.
 - Treat a `null` or errored Agent call (API failure, user skipped it) as `FAIL: agent call did not return` — not as unfinished work to silently retry. It goes through the normal whose-fault/refactor path.
 - A step running solo works directly in the project root. A step running as part of a parallel batch works in its own worktree — give it that path instead.
+- On PASS for a solo step that ran in the project root (git repo), commit its `files_touched` there before moving on (`git add <files_touched> && git commit -m "karagoz step NN: <title>"`) — that checkpoint is what keeps crash-recovery's and blocked-cleanup's `git checkout -- <files>` from ever reverting a different, already-done step, and what gives the next parallel batch a correct branch point.
