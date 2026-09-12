@@ -39,29 +39,34 @@ graders:
     path: wordfreq/plan/steps/01.md
   - type: regex
     name: progress table has the contract columns
-    target: files
+    target: { source: file, path: wordfreq/plan/progress.md }
     pattern: '\|\s*step\s*\|\s*status\s*\|\s*depends_on\s*\|\s*model\s*\|\s*critical\s*\|\s*file\s*\|\s*note\s*\|'
+  - type: regex
+    name: no step started - every row pending
+    target: { source: file, path: wordfreq/plan/progress.md }
+    pattern: '\|\s*(done|in_progress|refactoring|blocked)\s*\|'
+    match: not_contains
   - type: llm
-    name: plan honors the handoff contract and the language rule
-    focus: files
-    weight: 3
+    name: step file is self-contained, Turkish content, English keywords
+    focus: { source: file, path: wordfreq/plan/steps/01.md }
+    weight: 2
     criteria: |
-      Evaluate the files produced under wordfreq/plan/ against the karakam
-      handoff contract:
-      (1) progress.md is a thin status table; every row has status `pending`,
-          a model from {opus, sonnet, haiku}, and a critical flag; one row per
-          step file.
-      (2) Every steps/NN.md is self-contained: goal, depends_on, model +
-          critical + rationale, a relevant-methodology slice, a full worker
-          prompt, executable acceptance criteria, observer checks, and an
-          Outputs section with a precise files_touched list.
-      (3) Acceptance criteria are runnable checks (commands or tests that can
-          be executed), not vague prose, and at least attempt to be
-          un-gameable (e.g. forbid faking the tested state).
-      (4) The prose content of the files is written in Turkish (the user's
-          language), while structural keywords (depends_on, model, critical,
-          pending, section field names) stay in English.
-      (5) methodology.md covers: goal, stack choice with reasons, step
-          ordering logic, integrity principles, definition of done + test
-          strategy, and known limits.
-      Fail if any of these is materially violated.
+      This is one step file from a plan. It must be self-contained: a goal,
+      depends_on, model (opus/sonnet/haiku) + critical flag + rationale, a
+      relevant-methodology slice, a full worker prompt, acceptance criteria
+      that are runnable checks (commands or tests, not vague prose), observer
+      checks, and an Outputs section with a precise files_touched list. The
+      prose must be in Turkish (the user's language) while structural
+      keywords (depends_on, model, critical, section field names) stay in
+      English. Fail if a required section is missing, the criteria are not
+      executable, or the language rule is broken.
+  - type: llm
+    name: methodology covers the constitution sections
+    focus: { source: file, path: wordfreq/plan/methodology.md }
+    weight: 2
+    criteria: |
+      This methodology file is the plan's constitution. It must cover: the
+      goal, the chosen stack with reasons, step ordering logic, integrity
+      principles (how steps fit together), a definition of done + test
+      strategy, and an honest known-limits section. Prose in Turkish. Fail
+      if a section is materially missing or the file is in English.

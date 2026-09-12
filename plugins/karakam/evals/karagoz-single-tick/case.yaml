@@ -3,8 +3,10 @@ name: karagoz-single-tick
 description: >-
   Given a minimal one-step plan in the handoff format, a single karagoz tick
   must delegate the work to a Worker sub-agent, audit it with an Observer,
-  mark the step done in the ledger, checkpoint-commit on PASS, and stay thin
-  (never open the step file itself).
+  mark the step done in the ledger, checkpoint-commit on PASS, and close
+  with an honest Turkish summary. (Coordinator thinness — never opening the
+  step file itself — is not graded: tool_used counts the whole trace, and the
+  Worker/Observer legitimately read the step file in their own contexts.)
 tags: [karagoz, execution]
 runs: 1
 context:
@@ -27,11 +29,6 @@ graders:
     name: worker and observer ran as isolated sub-agents
     tool: Agent
     min: 2
-  - type: tool_used
-    name: coordinator stayed thin - never opened the step file itself
-    tool: Read
-    input_match: 'steps/01'
-    max: 0
   - type: file_exists
     name: greet.py produced
     path: greet.py
@@ -43,7 +40,7 @@ graders:
     path: plan/logs/01.md
   - type: regex
     name: ledger marks step 01 done
-    target: files
+    target: { source: file, path: plan/progress.md }
     pattern: '\|\s*01\s*\|\s*done\s*\|'
   - type: tool_used
     name: checkpoint commit after PASS
@@ -51,12 +48,16 @@ graders:
     input_match: 'git (add|commit)'
     min: 1
   - type: llm
-    name: closing summary in Turkish, reports verified completion
+    name: closing summary in Turkish, honest about verification
     focus: last_message
     weight: 2
     criteria: |
-      The final reply is a short closing summary in Turkish. It states that
-      step 01 was completed and that the work was verified (an
-      Observer/auditor ran the test and approved it) — not merely that a
-      Worker claimed success. It does not ask the user any questions and
-      does not wait for input.
+      The final reply is a short closing summary in Turkish that does not ask
+      the user any questions or wait for input. It must be honest about
+      verification: either it states that step 01 was completed AND verified
+      by an Observer/auditor that ran the checks itself (not merely the
+      Worker's own claim), or — if the environment genuinely prevented
+      running the checks (e.g. a broken shell tool) — it says so explicitly
+      and does not overclaim that the work was verified. Fail if it claims
+      verified success without an Observer, hides a verification gap, or
+      stops to ask the user something.
