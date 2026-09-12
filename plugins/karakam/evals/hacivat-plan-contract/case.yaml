@@ -1,0 +1,67 @@
+schema_version: "1.0"
+name: hacivat-plan-contract
+description: >-
+  When hacivat is named with a clear brief, it must run the critic panel as
+  parallel sub-agents and produce a plan that honors the handoff contract:
+  correct layout, contract-shaped progress.md, self-contained step files,
+  Turkish content with English structural keywords, no waiting for input.
+tags: [hacivat, contract]
+runs: 1
+execution:
+  prompt: |
+    hacivat: "wordfreq" adında küçük bir Python CLI aracı planla: bir metin
+    dosyasındaki en sık geçen 10 kelimeyi sayıp listeleyecek. Stack: saf Python 3
+    stdlib, testler pytest ile. Kapsam: tek komut, argüman olarak dosya yolu alır.
+    Brief net — netleştirme sorusu sorma, makul varsayımlarla ilerle. Eleştiri
+    panelini tek turla sınırla. Onayımı bekleme: planı yazıp kısa bir özetle bitir.
+    Çıktı dizini: ./wordfreq/plan/
+  max_turns: 60
+  timeout_seconds: 2400
+  allowed_tools: [Read, Write, Edit, Glob, Grep, Bash, Skill, Agent, Task, TodoWrite]
+graders:
+  - type: tool_used
+    name: hacivat skill fired
+    tool: Skill
+    input_match: hacivat
+    min: 1
+  - type: tool_used
+    name: critic panel ran as sub-agents (4 lenses)
+    tool: Agent
+    min: 4
+  - type: file_exists
+    name: methodology.md written
+    path: wordfreq/plan/methodology.md
+  - type: file_exists
+    name: progress.md written
+    path: wordfreq/plan/progress.md
+  - type: file_exists
+    name: first step file written
+    path: wordfreq/plan/steps/01.md
+  - type: regex
+    name: progress table has the contract columns
+    target: files
+    pattern: '\|\s*step\s*\|\s*status\s*\|\s*depends_on\s*\|\s*model\s*\|\s*critical\s*\|\s*file\s*\|\s*note\s*\|'
+  - type: llm
+    name: plan honors the handoff contract and the language rule
+    focus: files
+    weight: 3
+    criteria: |
+      Evaluate the files produced under wordfreq/plan/ against the karakam
+      handoff contract:
+      (1) progress.md is a thin status table; every row has status `pending`,
+          a model from {opus, sonnet, haiku}, and a critical flag; one row per
+          step file.
+      (2) Every steps/NN.md is self-contained: goal, depends_on, model +
+          critical + rationale, a relevant-methodology slice, a full worker
+          prompt, executable acceptance criteria, observer checks, and an
+          Outputs section with a precise files_touched list.
+      (3) Acceptance criteria are runnable checks (commands or tests that can
+          be executed), not vague prose, and at least attempt to be
+          un-gameable (e.g. forbid faking the tested state).
+      (4) The prose content of the files is written in Turkish (the user's
+          language), while structural keywords (depends_on, model, critical,
+          pending, section field names) stay in English.
+      (5) methodology.md covers: goal, stack choice with reasons, step
+          ordering logic, integrity principles, definition of done + test
+          strategy, and known limits.
+      Fail if any of these is materially violated.

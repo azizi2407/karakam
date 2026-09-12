@@ -1,0 +1,62 @@
+schema_version: "1.0"
+name: karagoz-single-tick
+description: >-
+  Given a minimal one-step plan in the handoff format, a single karagoz tick
+  must delegate the work to a Worker sub-agent, audit it with an Observer,
+  mark the step done in the ledger, checkpoint-commit on PASS, and stay thin
+  (never open the step file itself).
+tags: [karagoz, execution]
+runs: 1
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: |
+    karagoz: ./plan/ içindeki planı uygula. Bu tek seferlik bir çalıştırma,
+    /loop altında değilsin; iş bittiğinde ScheduleWakeup/Cron kapatma
+    adımlarını atla ve bana kısa bir kapanış özeti ver.
+  max_turns: 40
+  timeout_seconds: 1500
+  allowed_tools: [Read, Write, Edit, Glob, Grep, Bash, Skill, Agent, Task, TodoWrite]
+graders:
+  - type: tool_used
+    name: karagoz skill fired
+    tool: Skill
+    input_match: karagoz
+    min: 1
+  - type: tool_used
+    name: worker and observer ran as isolated sub-agents
+    tool: Agent
+    min: 2
+  - type: tool_used
+    name: coordinator stayed thin - never opened the step file itself
+    tool: Read
+    input_match: 'steps/01'
+    max: 0
+  - type: file_exists
+    name: greet.py produced
+    path: greet.py
+  - type: file_exists
+    name: test_greet.py produced
+    path: test_greet.py
+  - type: file_exists
+    name: worker log written
+    path: plan/logs/01.md
+  - type: regex
+    name: ledger marks step 01 done
+    target: files
+    pattern: '\|\s*01\s*\|\s*done\s*\|'
+  - type: tool_used
+    name: checkpoint commit after PASS
+    tool: Bash
+    input_match: 'git (add|commit)'
+    min: 1
+  - type: llm
+    name: closing summary in Turkish, reports verified completion
+    focus: last_message
+    weight: 2
+    criteria: |
+      The final reply is a short closing summary in Turkish. It states that
+      step 01 was completed and that the work was verified (an
+      Observer/auditor ran the test and approved it) — not merely that a
+      Worker claimed success. It does not ask the user any questions and
+      does not wait for input.
