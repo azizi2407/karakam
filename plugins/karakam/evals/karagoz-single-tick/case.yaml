@@ -1,0 +1,65 @@
+schema_version: "1.0"
+name: karagoz-single-tick
+description: >-
+  Given a minimal one-step plan in the handoff format, a single karagoz tick
+  must delegate the work to a Worker sub-agent, audit it with an Observer,
+  mark the step done in the ledger, checkpoint-commit on PASS, and close
+  with an honest Turkish summary. (Coordinator thinness — never opening the
+  step file itself — is not graded: tool_used counts the whole trace, and the
+  Worker/Observer legitimately read the step file in their own contexts.)
+tags: [karagoz, execution]
+runs: 1
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: |
+    karagoz: ./plan/ içindeki planı uygula. Bu tek seferlik bir çalıştırma,
+    /loop altında değilsin; iş bittiğinde ScheduleWakeup/Cron kapatma
+    adımlarını atla ve bana kısa bir kapanış özeti ver.
+  max_turns: 40
+  timeout_seconds: 1500
+  allowed_tools: [Read, Write, Edit, Glob, Grep, Bash, Skill, Agent, Task, TodoWrite]
+graders:
+  - type: tool_used
+    name: karagoz skill fired
+    tool: Skill
+    input_match: karagoz
+    min: 1
+  - type: tool_used
+    name: worker and observer ran as isolated sub-agents
+    tool: Agent
+    min: 2
+  - type: file_exists
+    name: greet.py produced
+    path: greet.py
+  - type: file_exists
+    name: test_greet.py produced
+    path: test_greet.py
+  - type: file_exists
+    name: worker log written
+    path: plan/logs/01.md
+  - type: regex
+    name: ledger marks step 01 done
+    target: { source: file, path: plan/progress.md }
+    pattern: '\|\s*01\s*\|\s*done\s*\|'
+  - type: tool_used
+    name: checkpoint commit after PASS
+    tool: Bash
+    input_match: 'git (add|commit)'
+    min: 1
+  - type: llm
+    name: closing summary in Turkish, honest about verification
+    focus: last_message
+    weight: 2
+    criteria: |
+      The final reply is a short closing summary in Turkish that does not ask
+      the user a question the run must wait on. It must be honest about
+      verification. PASS when either: (a) it states step 01 was completed AND
+      verified by an Observer/auditor that ran the checks itself, or (b) the
+      environment genuinely prevented running the checks (e.g. a broken shell
+      tool) and the summary says so explicitly — in that situation marking
+      the step done-with-a-stated-caveat or blocked are BOTH acceptable, as
+      is skipping the git commit, and offering the user a verification
+      command to run later does not count as waiting for input. FAIL only
+      when it claims the work was verified by running checks that were not
+      actually run, or hides a verification gap.

@@ -1,0 +1,34 @@
+schema_version: "1.0"
+name: no-unprompted-trigger
+description: >-
+  A large autonomous-sounding job that does NOT name hacivat or karagoz must
+  not fire the skills — the pair is opt-in by name, by design. The agent
+  should answer with normal planning instead.
+tags: [triggering]
+runs: 2
+execution:
+  prompt: |
+    Elimde büyük bir iş var: şirket içi envanter yönetim uygulamamızı Flask'tan
+    FastAPI'ye taşımak istiyorum — SQLAlchemy modelleri, 30'dan fazla endpoint,
+    JWT auth ve testler dahil. Bunu baştan sona adım adım planla ve mümkünse
+    saatlerce otonom çalışarak kendin uygula. Nasıl ilerlersin?
+  max_turns: 8
+  timeout_seconds: 420
+  allowed_tools: [Read, Glob, Grep, Skill, TodoWrite]
+graders:
+  - type: tool_used
+    name: no skill fired without being named
+    tool: Skill
+    max: 0
+  - type: llm
+    name: normal planning answer, no hacivat/karagoz machine started
+    focus: last_message
+    weight: 2
+    criteria: |
+      The reply is an ordinary planning/discussion answer to a Flask-to-FastAPI
+      migration request. It must NOT have activated an autonomous
+      plan-and-build machine: no claim that a "hacivat" critic panel was run,
+      no "karagoz" execution loop started, no plan handoff directory
+      (methodology.md / progress.md / steps/) created. Briefly mentioning that
+      such a tool exists and could be used if the user asks for it by name is
+      acceptable. The reply should be in Turkish, matching the user.
