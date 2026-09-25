@@ -27,6 +27,7 @@ graders:
   - type: tool_used
     name: critic panel ran as sub-agents (4 lenses)
     tool: Agent
+    input_match: critic
     min: 4
   - type: file_exists
     name: methodology.md written
@@ -40,7 +41,7 @@ graders:
   - type: regex
     name: progress table has the contract columns
     target: { source: file, path: wordfreq/plan/progress.md }
-    pattern: '\|\s*step\s*\|\s*status\s*\|\s*depends_on\s*\|\s*model\s*\|\s*critical\s*\|\s*file\s*\|\s*note\s*\|'
+    pattern: '\|\s*step\s*\|\s*status\s*\|\s*depends_on\s*\|\s*effort\s*\|\s*critical\s*\|\s*file\s*\|\s*note\s*\|'
   - type: regex
     name: no step started - every row pending
     target: { source: file, path: wordfreq/plan/progress.md }
@@ -52,14 +53,14 @@ graders:
     weight: 2
     criteria: |
       This is one step file from a plan. It must be self-contained: a goal,
-      depends_on, model (opus/sonnet/haiku) + critical flag + rationale, a
-      relevant-methodology slice, a full worker prompt, acceptance criteria
-      that are runnable checks (commands or tests, not vague prose), observer
-      checks, and an Outputs section with a precise files_touched list. The
-      prose must be in Turkish (the user's language) while structural
-      keywords (depends_on, model, critical, section field names) stay in
-      English. Fail if a required section is missing, the criteria are not
-      executable, or the language rule is broken.
+      depends_on, effort (low/medium/high) + critical flag + rationale, a
+      relevant-methodology slice, a task-specific worker prompt, acceptance
+      criteria that are runnable checks (commands or tests, not vague prose),
+      observer checks, and an Outputs section with a precise files_touched
+      list. The prose must be in Turkish (the user's language) while
+      structural keywords (depends_on, effort, critical, section field names)
+      stay in English. Fail if a required section is missing, the criteria
+      are not executable, or the language rule is broken.
   - type: llm
     name: methodology covers the constitution sections
     focus: { source: file, path: wordfreq/plan/methodology.md }

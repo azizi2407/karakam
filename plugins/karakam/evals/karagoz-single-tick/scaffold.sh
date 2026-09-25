@@ -19,9 +19,9 @@ EOF
 cat > plan/progress.md <<'EOF'
 # Progress
 
-| step | status | depends_on | model | critical | file | note |
-|------|--------|-----------|-------|----------|------|------|
-| 01 | pending | - | sonnet | no | steps/01.md | |
+| step | status | depends_on | effort | critical | file | note |
+|------|--------|-----------|--------|----------|------|------|
+| 01 | pending | - | low | no | steps/01.md | |
 EOF
 cat > plan/steps/01.md <<'EOF'
 # Step 01: selamlama fonksiyonu
@@ -32,8 +32,8 @@ cat > plan/steps/01.md <<'EOF'
 ## Dependencies
 depends_on: []
 
-## Model
-model: sonnet
+## Effort
+effort: low
 critical: false
 rationale: tek dosyalık mekanik iş.
 
@@ -46,7 +46,7 @@ Proje kökünde `greet.py` oluştur: `selamla(isim)` fonksiyonu
 `"Merhaba, " + isim + "!"` döndürsün. `test_greet.py` oluştur:
 `greet` modülünden `selamla`yı import etsin, `selamla("Dünya")`
 çağrısının `"Merhaba, Dünya!"` döndürdüğünü assert etsin ve sonunda
-`print("OK")` yapsın. Yorum ve açıklama yazma; sadece kod ve kısa log.
+`print("OK")` yapsın.
 
 ## Acceptance criteria (executable, un-gameable)
 `python3 test_greet.py` komutu `OK` yazdırır ve 0 koduyla çıkar.
