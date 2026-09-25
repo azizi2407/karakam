@@ -53,7 +53,7 @@ A panel round costs real money (see "Cost" in `references/critic-panel.md`). On 
 ### 4. Refine by hill-climbing
 
 - Any critical or major objection → fix it and run another round.
-- In later rounds, only the lenses that still had a critical/major objection or scored below 8 run again; the rest have already said what they had to say.
+- In later rounds, only the lenses that still had a critical/major objection or scored below 8 run again, and they verify rather than start over: each gets its own open objections and what you changed, confirms what's closed, and raises new objections only if they're critical or caused by your changes. A fresh full review every round finds a new crop of majors each time and never converges.
 - Once no critical/major objection remains and every lens is at 8 or above, stop.
 - At most three panel rounds. Whatever genuinely remains goes into `methodology.md` under "Known limits", and you mention it when presenting.
 
@@ -69,11 +69,12 @@ Build the `progress.md` skeleton (every step `pending`) and check that `effort` 
 
 Give the user a short summary — step count, key decisions, risks, known limits — plus two numbers they need before committing:
 
-- **Execution cost estimate.** Measured on Opus 5.5 at API list prices, a normal step costs roughly $0.5–1 end to end (Worker, Observer, and the Coordinator's share), a critical step about twice that, and every refactor round adds another Worker and Observer run. Give a range for the whole plan, e.g. "12 steps, 3 critical: roughly $8–15". The point is letting the user tell a light afternoon loop from an expensive multi-hour run.
+- **Execution cost estimate.** Measured on Opus 5.5 at API list prices, a small, well-specified step costs about $0.3–0.5 end to end (Worker, Observer and the Coordinator's share); budget up to ~$1 for a larger one, about twice that for a critical step (two Observers at high effort), and one more Worker-plus-Observer run for every refactor round. Give a range for the whole plan — e.g. "12 steps, 3 critical: roughly $6–15". The point is letting the user tell a light afternoon loop from an expensive multi-hour run; on a subscription it's a measure of how much of their usage the run will take, not a bill.
 - **An `/autocompact` window for the execution session.** Claude Code's default for Opus 5.5 is 1M tokens, so a long loop would carry an ever-growing conversation into every turn. Karagöz keeps all its state on disk, so compaction costs it nothing but the summary — size the window to hold a few ticks of work:
-  - per-tick growth `g ≈ 5K + 6K × b + 50 × N` tokens, where `b` is the widest batch of steps that can run together (count a critical step as 1.5) and `N` is the step count;
-  - window `≈ 40K + 4 × g`, rounded up to the next 10K, and kept between 80K and 200K.
-  - e.g. 6 steps, at most 2 in parallel → g ≈ 17K → `/autocompact 110000`.
+  - per-tick growth `g ≈ 4K + 4K × b + 50 × N` tokens, where `b` is the widest batch of steps that can run together (count a critical step as 1.5) and `N` is the step count;
+  - window `≈ 40K + 4 × g`, rounded up to the next 10K, and kept between 80K and 200K;
+  - e.g. 6 steps, at most 2 in parallel → g ≈ 12K → `/autocompact 90000`; 40 steps, up to 4 in parallel → g ≈ 22K → `/autocompact 130000`.
+  - The 40K base is a plain Claude Code session; if the user's setup loads a large CLAUDE.md or many MCP servers (`/context` shows it), add that on top.
 
 Get the user's approval, then hand over the template, written in their language:
 

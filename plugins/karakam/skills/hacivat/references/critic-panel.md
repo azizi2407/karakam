@@ -17,14 +17,14 @@ Spawn four `karakam:critic` agents **in a single message**. The agent definition
 
 - the plan directory,
 - the lens name and its definition from the list above,
-- on a later round, the steps that changed since that critic's last review (and, in one line each, what changed).
+- on a later round: that lens's critical and major objections from the previous round, and in one line each what you changed for them. That makes the round a verification round — the critic checks whether its objections are closed and raises new ones only if they're critical or introduced by your changes, instead of reviewing the whole plan afresh and moving the goalposts every round.
 
 Pass paths, not contents — the plan is already on disk.
 
 ## The hill-climb
 
 ```
-lenses = all four
+lenses = all four                          # round 1: full review
 round = 1
 while round <= 3:
     run the critics in `lenses`, in parallel
@@ -34,13 +34,14 @@ while round <= 3:
     fix the plan: close every critical/major objection; for a low score
                   without one, take the lowest-scoring lens's suggestions
     lenses = open, plus step-ordering whenever steps were split, merged or renumbered
-    round += 1
+    round += 1                             # later rounds: verification
 stop("max rounds")
 ```
 
 - **Critical/major always triggers another round.** Don't wave one through because the scores look good.
 - **Minor objections alone don't.** If critical/major are clear and the scores are at threshold, stop. Cheap, mechanical minors (a wrong reference, a missing line) you may fix without another round.
 - **Settled lenses stay settled.** A lens with no critical/major and a score of 8+ doesn't run again — the one exception is step-ordering after a split, merge or renumbering, because those change the dependency graph it judges.
+- **Later rounds verify; they don't start over.** A fresh full review every round surfaces a new crop of majors each time and the climb never converges. Send each re-run critic its own open objections and your fixes (see "Spawning the critics"); an objection it newly raises that is neither critical nor caused by your change goes to "Known limits" or gets fixed without another round.
 - **Fix with diffs.** `Edit` only the files that drew objections. Regenerating the whole plan is the most expensive mistake available.
 - **Three rounds at most.** The final round's objections still get judged — fix the cheap ones, but don't start a fourth round. Write whatever genuinely remains into `methodology.md` under "Known limits", honestly, and flag it to the user when you present.
 

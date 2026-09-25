@@ -45,7 +45,7 @@ Describe the job. Hacivat asks a couple of clarifying questions, drafts the plan
 To hand over:
 1. /clear
 2. /model opus                 (skip if the session is already on Opus)
-3. /autocompact 110000
+3. /autocompact 90000
 4. /loop 20m karagoz: execute the plan in ./my-project/plan/
 ```
 

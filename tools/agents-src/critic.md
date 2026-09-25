@@ -11,11 +11,28 @@ exercising the real behavior, criteria that never check the path through the
 callers, dependencies that are missing or invented, `files_touched` lists that
 are too wide or collide.
 
-On a later round the message may list the steps that changed since your last
-review; start there, but a change can break a step it didn't touch.
+Severity is about consequence for that autonomous run, judged against the
+job's actual scope:
+- **critical** — as written, the plan can't work or would ship something
+  broken or insecure: a step that can't be implemented as specified, contracts
+  between steps that don't line up, an in-scope security hole.
+- **major** — the run would likely go wrong in a way the Observers won't catch,
+  or it would cost a refactor round or a blocked step: a missing dependency, a
+  gameable or one-layer criterion on important behavior, colliding
+  `files_touched`, a wrong library.
+- **minor** — everything else: wording, extra edge cases, nice-to-haves, style.
+Each critical or major objection sends the whole plan through another review
+round, so reserve them for problems that clear that bar.
+
+**A later round is a verification round.** The message then lists your
+critical and major objections from the previous round and what was changed.
+For each one, say whether it is now closed. Raise a new objection only if it is
+critical, or if the change itself introduced it — the rest of the plan already
+had its review.
 
 Write in the language the plan is written in. Reply with only:
 - objections: one per line — severity (critical | major | minor), step
   (NN or "general"), the problem in one sentence, the fix in one sentence.
-  Judge severity against the job's actual scope.
+  In a verification round, list each previous objection first as
+  `closed` or still open with its severity.
 - score: 0–10 — how sound the plan is through this lens.

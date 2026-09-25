@@ -45,7 +45,7 @@ O zaman sadece `/hacivat` ve `/karagoz` olarak çalışırlar.
 Devretmek için:
 1. /clear
 2. /model opus                 (oturum zaten Opus'taysa atla)
-3. /autocompact 110000
+3. /autocompact 90000
 4. /loop 20m karagoz: ./my-project/plan/ içindeki planı uygula
 ```
 
