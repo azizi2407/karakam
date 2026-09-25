@@ -178,7 +178,7 @@ def role_of(desc, agent_type):
     return "other-subagent"
 
 
-def agent_costs(proj):
+def agent_costs(proj, subagent_role=None):
     """Cost per role from the session transcripts Claude Code keeps on disk."""
     tdir = Path.home() / ".claude" / "projects" / re.sub(r"[^A-Za-z0-9]", "-", str(proj))
     out = {}
@@ -186,7 +186,7 @@ def agent_costs(proj):
         meta = f.with_suffix(".meta.json")
         if "subagents" in f.parts:
             m = json.loads(meta.read_text()) if meta.exists() else {}
-            role = role_of(m.get("description", ""), m.get("agentType", ""))
+            role = subagent_role or role_of(m.get("description", ""), m.get("agentType", ""))
         else:
             role = "main"
         msgs = {}
@@ -228,7 +228,7 @@ def one(mode, label, i, model, max_ticks):
         else run_hacivat(run_dir, plugin, model)
     res["wall_total_s"] = round(time.time() - t0, 1)
     res["by_model"] = model_costs(run_dir)
-    res["by_role"] = agent_costs(run_dir / "proj")
+    res["by_role"] = agent_costs(run_dir / "proj", "critic" if mode == "hacivat" else None)
     res["total_cost"] = round(sum(v["cost"] for v in res["by_model"].values()), 4)
     (run_dir / "summary.json").write_text(json.dumps(res, indent=1, ensure_ascii=False))
     print(f"[{mode}/{label}/run-{i}] ${res['total_cost']} "
@@ -275,7 +275,8 @@ def main():
     if a.mode == "reanalyze":
         for sfile in RESULTS.glob("*/*/run-*/summary.json"):
             r = json.loads(sfile.read_text())
-            r["by_role"] = agent_costs(sfile.parent / "proj")
+            r["by_role"] = agent_costs(sfile.parent / "proj",
+                                       "critic" if "/hacivat/" in str(sfile) else None)
             sfile.write_text(json.dumps(r, indent=1, ensure_ascii=False))
         return report()
     snapshot_plugin(RESULTS / a.mode / a.label / "plugin")
