@@ -53,7 +53,7 @@ Read `<plan-dir>/progress.md`.
 Mark the batch `in_progress` in one edit, then spawn — all Workers of a batch in a single message:
 
 - **Agent:** `karakam:worker-<effort>` — the step's effort: `low`, `medium` or `high`.
-- **Message:** the project root (or the step's worktree path), the step file path, and the plan directory. That's all — the step file carries the task and the agent definition carries the protocol.
+- **Message:** the project root (or the step's worktree path), the step file path, and the plan directory. That's all — the step file carries the task and the agent definition carries the protocol. Give the step file and plan directory as absolute paths in the main tree, even for a worktree step: the worktree's copy of the plan is a snapshot from when it branched, without the live ledger or any spec fix since, and logs written there vanish with the worktree.
 - **Model:** the agent definition sets it. Don't override it — pass `model: fable` only when the user has explicitly asked for Fable in this run.
 
 A Worker or Observer call that returns nothing or errors out is a `FAIL: agent call did not return` and goes through step 4 like any other failure, not a silent retry.

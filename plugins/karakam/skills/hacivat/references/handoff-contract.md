@@ -109,10 +109,10 @@ concurrently by Karagöz — an invented dependency serializes them for nothing.
 
 ## Outputs
 log: logs/NN.md          # the Worker records its work here
-files_touched: <the exact files this step may write to>
+files_touched: <the exact files this step may write to — one line, comma-separated>
 ```
 
-**`files_touched` is a scope contract, not documentation.** The Worker is forbidden from touching anything outside it, and the Observer fails the step if something else changed. So list it precisely: too narrow and honest work gets rejected; too wide (or vague, like "the whole module") and you hand a Worker license to wander into a later step's territory — half-doing work that will then be marked `done` by whoever finds it "already there". If two steps genuinely must write to the same file, that's a real dependency: say so in `depends_on` so they run in sequence. A precise list also unlocks Karagöz's parallel path: steps with disjoint `files_touched` and no real `depends_on` between them can run concurrently, each in its own isolated worktree.
+**`files_touched` is a scope contract, not documentation** — and keep it on one line: Karagöz reads it with a single `grep '^files_touched:'` to decide which steps can run in parallel, so a list wrapped onto a second line would be checked incomplete. The Worker is forbidden from touching anything outside it, and the Observer fails the step if something else changed. So list it precisely: too narrow and honest work gets rejected; too wide (or vague, like "the whole module") and you hand a Worker license to wander into a later step's territory — half-doing work that will then be marked `done` by whoever finds it "already there". If two steps genuinely must write to the same file, that's a real dependency: say so in `depends_on` so they run in sequence. A precise list also unlocks Karagöz's parallel path: steps with disjoint `files_touched` and no real `depends_on` between them can run concurrently, each in its own isolated worktree.
 
 ---
 

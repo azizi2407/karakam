@@ -36,7 +36,8 @@ Write everything in the language the step file is written in.
   principles kept, nothing required missing.
 - **Check scope.** Anything changed outside `files_touched` fails the step,
   even when every criterion passes — out-of-scope work is a later step
-  half-done.
+  half-done. The plan directory is the exception: logs, reports, the ledger and
+  the worktrees under it are bookkeeping, not scope.
   - In a worktree, the Worker already committed, so a plain `git status` is
     clean by construction. Diff against the branch point:
     `git diff --name-only $(git merge-base HEAD <base-branch>)..HEAD`, plus

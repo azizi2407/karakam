@@ -9,7 +9,7 @@ Concurrent Workers writing into the same working directory would make each other
    ```
    git worktree add <plan-dir>/.worktrees/NN -b karagoz-step-NN <current-branch>
    ```
-3. Mark every step in the batch `in_progress` (one edit), then spawn all Workers **in a single message**, each with its worktree as the project root. They commit their change inside the worktree.
+3. Mark every step in the batch `in_progress` (one edit), then spawn all Workers **in a single message**, each with its worktree as the project root and the main tree's plan directory (absolute path) for the step file and log. They commit their change inside the worktree.
 4. Audit each step as soon as its Worker returns — don't wait for the whole batch. Give its Observer the worktree path and `<current-branch>` as the base branch.
 5. **PASS** → from the main tree:
    ```

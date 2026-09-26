@@ -83,13 +83,14 @@ Get the user's approval, then hand over the template, written in their language:
 ✅ Plan ready: <N> steps, ./<project>/plan/ — estimated execution: ~$<low>–<high>
 
 To hand over:
+0. Commit your work and the plan: git add -A && git commit -m "plan"
 1. /clear
 2. /model opus                 (skip if the session is already on Opus)
 3. /autocompact <window>
 4. /loop 20m karagoz: execute the plan in ./<project>/plan/
 ```
 
-The loop prompt must name `karagoz` — that name is what triggers the execution skill on every tick. `/clear` starts execution on a fresh context, and switching model or compaction settings right after it costs nothing, because there is no cached conversation yet to rewrite.
+Step 0 matters in a git project: Karagöz commits each finished step and reverts a failed one with `git checkout` on its `files_touched`, and parallel steps branch from the last commit — so uncommitted work of the user's in those files could be overwritten, and would be invisible to parallel Workers. The loop prompt must name `karagoz` — that name is what triggers the execution skill on every tick. `/clear` starts execution on a fresh context, and switching model or compaction settings right after it costs nothing, because there is no cached conversation yet to rewrite.
 
 Choose the interval with the user, and tell them why it matters: every tick resends the whole loop conversation, which is cheap only while the prompt cache is warm. On a Claude subscription the cache lives an hour, so `20m` is fine and spreads the work across their usage window. On an API key or a cloud provider (or a subscription drawing on usage credits) it lives five minutes — there, drop the interval (`/loop karagoz: …`), and each tick follows the previous one straight away.
 
