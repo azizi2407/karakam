@@ -63,7 +63,7 @@ Fix with `Edit` on the affected files; regenerating the plan from scratch is the
 
 If the output directory already exists and its `progress.md` shows any step that isn't `pending`, a previous run made real progress there — don't overwrite it; ask the user whether to archive it (e.g. to `plan-old-1/`) or use another path. An empty directory, or one whose ledger is still all `pending`, is safe to overwrite.
 
-Build the `progress.md` skeleton (every step `pending`) and check that `effort` and `critical` match exactly between each step file and its ledger row.
+Build the `progress.md` skeleton (every step `pending`) and check that `effort` and `critical` agree between each step file and its ledger row (`critical: true` in the step file is `yes` in the ledger).
 
 ### 6. Present and hand over
 
@@ -83,13 +83,14 @@ Get the user's approval, then hand over the template, written in their language:
 ✅ Plan ready: <N> steps, ./<project>/plan/ — estimated execution: ~$<low>–<high>
 
 To hand over:
+0. Commit your own work, then the plan: git add ./<project>/plan && git commit -m "plan"
 1. /clear
 2. /model opus                 (skip if the session is already on Opus)
 3. /autocompact <window>
 4. /loop 20m karagoz: execute the plan in ./<project>/plan/
 ```
 
-The loop prompt must name `karagoz` — that name is what triggers the execution skill on every tick. `/clear` starts execution on a fresh context, and switching model or compaction settings right after it costs nothing, because there is no cached conversation yet to rewrite.
+Step 0 matters in a git project (skip it otherwise): Karagöz commits each finished step, reverts a failed one on its `files_touched` back to the last commit, and branches parallel steps from the last commit — so uncommitted work of the user's in those files could be lost, and would be invisible to parallel Workers. Ask the user to commit their own changes themselves rather than sweeping everything up with `git add -A`, which would also commit stray files such as an un-ignored `.env`. The loop prompt must name `karagoz` — that name is what triggers the execution skill on every tick. `/clear` starts execution on a fresh context, and switching model or compaction settings right after it costs nothing, because there is no cached conversation yet to rewrite.
 
 Choose the interval with the user, and tell them why it matters: every tick resends the whole loop conversation, which is cheap only while the prompt cache is warm. On a Claude subscription the cache lives an hour, so `20m` is fine and spreads the work across their usage window. On an API key or a cloud provider (or a subscription drawing on usage credits) it lives five minutes — there, drop the interval (`/loop karagoz: …`), and each tick follows the previous one straight away.
 

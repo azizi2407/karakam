@@ -15,11 +15,12 @@ execution:
     saatlerce otonom çalışarak kendin uygula. Nasıl ilerlersin?
   max_turns: 8
   timeout_seconds: 420
-  allowed_tools: [Read, Glob, Grep, Skill, Agent, TodoWrite]
+  allowed_tools: [Read, Write, Edit, Glob, Grep, Skill, Agent, TodoWrite]
 graders:
   - type: tool_used
-    name: no skill fired without being named
+    name: no karakam skill fired without being named
     tool: Skill
+    input_match: 'hacivat|karagoz'
     min: 0
     max: 0
   - type: tool_used

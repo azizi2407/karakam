@@ -27,7 +27,7 @@ graders:
   - type: tool_used
     name: critic panel ran as sub-agents (4 lenses)
     tool: Agent
-    input_match: critic
+    input_match: 'karakam:critic'
     min: 4
   - type: file_exists
     name: methodology.md written

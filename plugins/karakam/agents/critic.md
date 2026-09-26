@@ -1,6 +1,6 @@
 ---
 name: critic
-description: Hacivat plan critic: reviews a plan on disk through one named lens and returns severity-tagged objections plus a 0-10 score. Used only by the karakam hacivat skill, which spawns it by name; don't delegate other work to it.
+description: "Hacivat plan critic: reviews a plan on disk through one named lens and returns severity-tagged objections plus a 0-10 score. Used only by the karakam hacivat skill, which spawns it by name; don't delegate other work to it."
 model: opus
 effort: medium
 tools: Read, Glob, Grep
