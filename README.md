@@ -45,11 +45,11 @@ Describe the job. Hacivat asks a couple of clarifying questions, drafts the plan
 To hand over:
 1. /clear
 2. /model opus                 (skip if the session is already on Opus)
-3. /autocompact 90000
+3. /autocompact 150k
 4. /loop 20m karagoz: execute the plan in ./my-project/plan/
 ```
 
-`/clear` matters — the execution phase must start on a fresh context, and that fresh start is also the one moment where switching model or compaction settings costs nothing. The `/autocompact` window is sized to the plan (Claude Code's default for Opus 5.5 is 1M tokens, which would let the loop's conversation — resent on every turn — grow for hours). On an API key, drop the interval (`/loop karagoz: …`): the prompt cache lives five minutes there, and a 20-minute gap would re-write the whole conversation on every tick. Then Karagöz takes over and works through the plan on its own, closing the loop when the job is done.
+`/clear` matters — the execution phase must start on a fresh context, and that fresh start is also the one moment where switching model or compaction settings costs nothing. The `/autocompact` window is sized to the plan — 150k–250k depending on how many steps run in parallel. Claude Code's default for Opus 5.5 is 1M tokens, which would let the loop's conversation, resent on every turn, grow for hours; a smaller window caps that, while leaving room for several ticks between compactions (compaction fires ~33K below the window, and a session starts at ~35–50K before any work). On an API key, drop the interval (`/loop karagoz: …`): the prompt cache lives five minutes there, and a 20-minute gap would re-write the whole conversation on every tick. Then Karagöz takes over and works through the plan on its own, closing the loop when the job is done.
 
 **These skills only run when you name them.** They will not fire on their own, however much your request sounds like a job for them. That's deliberate: they spin up an expensive machine, and you decide when that's worth it.
 

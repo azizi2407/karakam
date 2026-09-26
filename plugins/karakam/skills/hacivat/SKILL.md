@@ -70,11 +70,12 @@ Build the `progress.md` skeleton (every step `pending`) and check that `effort` 
 Give the user a short summary — step count, key decisions, risks, known limits — plus two numbers they need before committing:
 
 - **Execution cost estimate.** Measured on Opus 5.5 at API list prices, a small, well-specified step costs about $0.3–0.5 end to end (Worker, Observer and the Coordinator's share); budget up to ~$1 for a larger one, about twice that for a critical step (two Observers at high effort), and one more Worker-plus-Observer run for every refactor round. Give a range for the whole plan — e.g. "12 steps, 3 critical: roughly $6–15". The point is letting the user tell a light afternoon loop from an expensive multi-hour run; on a subscription it's a measure of how much of their usage the run will take, not a bill.
-- **An `/autocompact` window for the execution session.** Claude Code's default for Opus 5.5 is 1M tokens, so a long loop would carry an ever-growing conversation into every turn. Karagöz keeps all its state on disk, so compaction costs it nothing but the summary — size the window to hold a few ticks of work:
-  - per-tick growth `g ≈ 4K + 4K × b + 50 × N` tokens, where `b` is the widest batch of steps that can run together (count a critical step as 1.5) and `N` is the step count;
-  - window `≈ 40K + 4 × g`, rounded up to the next 10K, and kept between 80K and 200K;
-  - e.g. 6 steps, at most 2 in parallel → g ≈ 12K → `/autocompact 90000`; 40 steps, up to 4 in parallel → g ≈ 22K → `/autocompact 130000`.
-  - The 40K base is a plain Claude Code session; if the user's setup loads a large CLAUDE.md or many MCP servers (`/context` shows it), add that on top.
+- **An `/autocompact` window for the execution session.** Claude Code's default for Opus 5.5 is 1M tokens, so a long loop would carry an ever-growing conversation into every turn. Karagöz keeps all its state on disk, so compaction loses it nothing — but the window has to leave room for several ticks between compactions, so one never lands mid-batch:
+  - up to 2 steps in parallel → `/autocompact 150k`
+  - 3–4 steps in parallel, or 30+ steps → `/autocompact 200k`
+  - wider batches → `/autocompact 250k`
+
+  Why these sizes: compaction fires about 33K below the window (Claude Code keeps that as a summary buffer); a session starts at roughly 35–50K before any work (more with a large CLAUDE.md or many MCP servers — `/context` shows it); and a tick adds roughly 5–10K per step in its batch. Going lower saves only cents per tick, while the command itself rejects anything under 100k.
 
 Get the user's approval, then hand over the template, written in their language:
 
