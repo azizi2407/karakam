@@ -115,12 +115,18 @@ Bir adım refactor turlarından sonra da geçemezse, loop seni bekleyip durmaz. 
 
 ## Maliyet
 
-Bu konuda kendine dürüst ol: ucuz değil.
+Tahmin değil, ölçüm: [`plugins/karakam/evals/bench`](plugins/karakam/evals/bench) iki yarıyı sabit görevlerde headless koşturur ve faturayı rollere böler; ajanların hiç görmediği gizli kabul testleri de ürünü notlar. Fiyatlar Opus 5.5'in API liste fiyatları; abonelikteysen bunları bir koşunun kullanımından ne kadar yiyeceği olarak oku.
 
-- Bir eleştiri paneli turu ≈ **340k token** (4 mercek). Tırmanış en fazla 3 tura izin verir. Bu puanlar Observer'ların aksine hiçbir şey çalıştırmaz — kritik/majör itirazlar somut sinyaldir, yüksek puan sadece "bu mercek başka delik bulamadı" demektir.
-- Yürütme adım başına kabaca **110-140k token** tutar (Worker + Observer); iki Observer'lı ve bir refactor turu olan kritik bir adım bunun birkaç katına çıkar.
+| | 1.1 (Sonnet/Haiku alt-ajanlar) | 1.2 (her şey Opus'ta, effort ayarlı) |
+|---|---|---|
+| Karagöz — 3 adımlı plan, 2 paralel + 1 kritik | $1.83 · gizli testler 18/18 | **$1.46** · gizli testler 18/18 |
+| Hacivat — 6 adımlı bir planın planlanması, eleştiri paneli dahil | $3.35 | **$3.08** |
 
-Büyük, otonom bir işte bu ucuza gelir — bozuk bir plan saatlerce yanlış çıktı demektir. Küçük bir işte ise fazlasıyla abartı; onun yerine düz Claude Code kullan. Hacivat, devir sırasında yürütme için kabaca bir token tahmini de verir; bütçeyi gözetiyorsan ekstra bir panel turu harcamadan önce sana sorar.
+Worker'ları, Observer'ları ve eleştirmenleri Sonnet/Haiku'dan Opus'a taşımak iki yarıyı da *ucuzlattı*, üç sebeple: medium effort'taki Opus 5.5 daha az turda bitiriyor; Koordinatör inceldi (her çağrıda yeniden yazılan prompt şablonları yerine plugin agent'ları, nadir yollar gerektiğinde yükleniyor) — yürütme faturasının %30–40'ı ondaydı; ve eleştiri panelinin sonraki turları tüm planı sıfırdan incelemek yerine önceki itirazların kapanıp kapanmadığını doğruluyor. (Bu son değişiklik olmadan Opus eleştirmenleri her turda yeni bir major itiraz dalgası çıkardı ve planlama $5.18'e mal oldu.)
+
+Adım başına beklenti: küçük ve iyi tanımlanmış bir adım baştan sona yaklaşık **$0.3–0.5**, daha büyüğü ~$1'a kadar, kritik bir adım (high effort'ta iki Observer) bunun yaklaşık iki katı; her refactor turu bir Worker ve bir Observer koşusu daha ekler. Hacivat bunu başlamadan önce senin planın için bir aralığa çevirir.
+
+Bu benchmark'ın planı iyi tanımlı; iki sürüm de tek bir refactor turuna girmeden geçiyor — yani temiz bir koşunun maliyetini ölçüyor, bir sürümün zor bir adımdan ne kadar iyi toparlandığını değil. Büyük, otonom bir işte bütün bu makine ucuza gelir — bozuk bir plan saatlerce yanlış çıktı demektir. Küçük bir işte fazlasıyla abartı; onun yerine düz Claude Code kullan.
 
 ## Gereksinimler
 

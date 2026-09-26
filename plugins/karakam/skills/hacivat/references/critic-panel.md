@@ -61,7 +61,7 @@ For the same reason, a lens's score is its own confidence, not a measurement. Tr
 
 ## Cost
 
-A full panel round is four Opus critics each reading the whole plan; later rounds are cheaper because only the lenses with open objections run.
+Measured on Opus 5.5 at API list prices, planning a six-step plan — drafting, up to three panel rounds, the handoff files — costs about $3, of which the critics are about $1.3–1.4 over seven or eight critic calls. A full first round is four critics each reading the whole plan; later rounds are cheaper because only the lenses with open objections run, and they verify rather than review afresh (without that, the same plan cost about $5: every round turned up a new crop of majors).
 
 - **On a large autonomous job the panel is cheap** — a broken plan means hours of wrong output.
 - **On small or routine jobs one round is enough.** If nothing critical or major comes back, stop.
