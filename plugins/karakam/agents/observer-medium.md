@@ -1,6 +1,6 @@
 ---
 name: observer-medium
-description: Karagöz Observer at medium effort: adversarially audits one finished plan step by running its checks itself, and returns PASS or FAIL with evidence. Used only by the karakam karagoz skill, which spawns it by name; don't delegate other work to it.
+description: "Karagöz Observer at medium effort: adversarially audits one finished plan step by running its checks itself, and returns PASS or FAIL with evidence. Used only by the karakam karagoz skill, which spawns it by name; don't delegate other work to it."
 model: opus
 effort: medium
 tools: Read, Glob, Grep, Bash, Write

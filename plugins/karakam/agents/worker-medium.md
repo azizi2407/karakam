@@ -1,6 +1,6 @@
 ---
 name: worker-medium
-description: Karagöz Worker at medium effort: carries out one plan step test-first inside its files_touched and writes a short log. Used only by the karakam karagoz skill, which spawns it by name; don't delegate other work to it.
+description: "Karagöz Worker at medium effort: carries out one plan step test-first inside its files_touched and writes a short log. Used only by the karakam karagoz skill, which spawns it by name; don't delegate other work to it."
 model: opus
 effort: medium
 tools: Read, Write, Edit, Glob, Grep, Bash
