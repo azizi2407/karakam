@@ -120,13 +120,14 @@ Measured, not guessed: [`plugins/karakam/evals/bench`](plugins/karakam/evals/ben
 | | 1.1 (Sonnet/Haiku sub-agents) | 1.2 (everything on Opus, effort-tuned) |
 |---|---|---|
 | Karagöz — 3-step plan, 2 parallel + 1 critical | $1.83 · hidden tests 18/18 | **$1.46** · hidden tests 18/18 |
+| Karagöz — hard 3-step plan on an existing codebase, one step with a spec fault (1 refactor round) | $2.23 · 21/21 · ~10.5 min | **$1.66** · 21/21 · ~4.3 min |
 | Hacivat — planning a 6-step plan, critic panel included | $3.35 | **$3.08** |
 
 Moving the Workers, Observers and critics from Sonnet/Haiku to Opus made both halves *cheaper*, for three reasons: Opus 5.5 at medium effort finishes in fewer turns; the Coordinator got thinner (plugin agents instead of prompt templates re-typed on every call, rare paths loaded on demand) — it was 30–40% of the execution bill; and the critic panel's later rounds verify earlier objections instead of reviewing the whole plan afresh. (Without that last change, Opus critics raised a new crop of major objections every round and planning cost $5.18.)
 
 What to expect per step: a small, well-specified step runs about **$0.3–0.5** end to end, a larger one up to ~$1, a critical step (two Observers at high effort) about twice that, and every refactor round adds another Worker and Observer run. Hacivat turns that into a range for your plan before you start.
 
-This benchmark's plan is well specified, so both versions pass it without a single refactor round — it measures what a clean run costs, not how well a version recovers from a hard step. On a large autonomous job the whole machine is a bargain — a broken plan means hours of wrong output. On a small one it's overkill; use plain Claude Code instead.
+In the hard scenario every run of both versions hit the planted spec fault, recognised it as a single-step fault, widened the step's `files_touched`, and passed on the next round; 1.2 did it for a quarter less money in well under half the time. A second trap — a Turkish-casing step labelled `low` effort — didn't catch any Worker, even Haiku's, so the effort ladder hasn't been exercised by a measurement yet. On a large autonomous job the whole machine is a bargain — a broken plan means hours of wrong output. On a small one it's overkill; use plain Claude Code instead.
 
 ## Requirements
 
