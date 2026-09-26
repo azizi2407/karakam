@@ -21,15 +21,13 @@ The point is a job that runs for hours without a human in the loop, and without 
 Skills are namespaced by the plugin: `/karakam:hacivat` and `/karakam:karagoz`.
 
 <details>
-<summary>Or install manually (no marketplace)</summary>
+<summary>Or run it from a clone</summary>
 
 ```bash
 git clone https://github.com/azizi2407/karakam.git
-mkdir -p ~/.claude/skills
-cp -R karakam/plugins/karakam/skills/hacivat ~/.claude/skills/
-cp -R karakam/plugins/karakam/skills/karagoz ~/.claude/skills/
+claude --plugin-dir karakam/plugins/karakam      # for one session
 ```
-Then they're just `/hacivat` and `/karagoz`.
+Or keep it installed from the clone: `/plugin marketplace add ./karakam`, then `/plugin install karakam@kara-skills`. Copying only the skill folders into `~/.claude/skills/` doesn't work: the skills spawn the plugin's `karakam:` sub-agents, which only exist when karakam is loaded as a plugin.
 </details>
 
 ## Use
@@ -43,14 +41,14 @@ Describe the job. Hacivat asks a couple of clarifying questions, drafts the plan
 ✅ Plan ready: 7 steps, ./my-project/plan/ — estimated execution: ~$5–9
 
 To hand over:
-0. Commit your work and the plan: git add -A && git commit -m "plan"
+0. Commit your own work, then the plan: git add ./my-project/plan && git commit -m "plan"
 1. /clear
 2. /model opus                 (skip if the session is already on Opus)
 3. /autocompact 150k
 4. /loop 20m karagoz: execute the plan in ./my-project/plan/
 ```
 
-Commit first: Karagöz checkpoints every finished step with git and reverts a failed one on its own files, so it has to start from a clean tree. `/clear` matters — the execution phase must start on a fresh context, and that fresh start is also the one moment where switching model or compaction settings costs nothing. The `/autocompact` window is sized to the plan — 150k–250k depending on how many steps run in parallel. Claude Code's default for Opus 5.5 is 1M tokens, which would let the loop's conversation, resent on every turn, grow for hours; a smaller window caps that, while leaving room for several ticks between compactions (compaction fires ~33K below the window, and a session starts at ~35–50K before any work). On an API key, drop the interval (`/loop karagoz: …`): the prompt cache lives five minutes there, and a 20-minute gap would re-write the whole conversation on every tick. Then Karagöz takes over and works through the plan on its own, closing the loop when the job is done.
+Commit first (in a git project): Karagöz checkpoints every finished step with git and reverts a failed one on its own files, so it has to start from a clean tree — commit your own changes yourself rather than with a blanket `git add -A`, which would sweep in stray files too. `/clear` matters — the execution phase must start on a fresh context, and that fresh start is also the one moment where switching model or compaction settings costs nothing. The `/autocompact` window is sized to the plan — 150k–250k depending on how many steps run in parallel. Claude Code's default for Opus 5.5 is 1M tokens, which would let the loop's conversation, resent on every turn, grow for hours; a smaller window caps that, while leaving room for several ticks between compactions (compaction fires ~33K below the window, and a session starts at ~35–50K before any work). On an API key, drop the interval (`/loop karagoz: …`): the prompt cache lives five minutes there, and a 20-minute gap would re-write the whole conversation on every tick. Then Karagöz takes over and works through the plan on its own, closing the loop when the job is done.
 
 **These skills only run when you name them.** They will not fire on their own, however much your request sounds like a job for them. That's deliberate: they spin up an expensive machine, and you decide when that's worth it.
 
@@ -74,7 +72,7 @@ The handoff between the halves is four files:
 plan/
 ├── methodology.md     # the constitution: goal, stack, methods, integrity rules, DoD
 ├── progress.md        # thin ledger — the ONLY file the Coordinator reads
-├── steps/NN.md        # self-contained steps: worker prompt, model, acceptance criteria
+├── steps/NN.md        # self-contained steps: worker prompt, effort, acceptance criteria
 ├── logs/  reports/    # Worker logs and long Observer reports
 ```
 
@@ -91,7 +89,7 @@ That's what lets the loop spin for hours instead of collapsing after a few ticks
 
 ### Parallelism on independent steps
 
-Steps whose `files_touched` lists don't overlap can run in the same tick, in parallel — each isolated in its own git worktree, so one Worker's changes never look like a scope violation to another step's Observer. On PASS the worktree merges into the shared tree; on FAIL it's discarded without ever having touched the shared tree. Overlapping `files_touched` still runs one step at a time, in order. A solo step that runs directly in the shared root gets committed there on PASS too — that checkpoint is what keeps crash recovery's `git checkout -- <files>` safe (it can only ever revert this step's own uncommitted work, never an earlier `done` step's) and gives the next parallel batch a correct branch point.
+Steps whose `files_touched` lists don't overlap can run in the same tick, in parallel — each isolated in its own git worktree, so one Worker's changes never look like a scope violation to another step's Observer. On PASS the step is committed in its worktree and merged into the shared tree; on FAIL the worktree is discarded without ever having touched the shared tree. Overlapping `files_touched` still runs one step at a time, in order. A solo step that runs directly in the shared root gets committed there on PASS too, before the ledger calls it `done`. That checkpoint is what makes reverting a failed or interrupted step safe — the revert only ever reaches that step's own uncommitted work, never an earlier `done` step's — and gives the next parallel batch a correct branch point. Those commits and reverts go through a small script (`skills/karagoz/scripts/stepgit.sh`) that handles the files a step creates or deletes, which plain `git add` / `git checkout` on a file list silently get wrong.
 
 ### Defense in depth — no human required
 
@@ -112,7 +110,7 @@ A single Observer — **either one of them** — would have let that through.
 
 ### Smart continuation
 
-When a step can't pass after its refactor rounds, the loop doesn't stall waiting for you. The step is marked `blocked`, everything that depends on it waits, and independent work carries on. When there's nothing left to do, the loop closes itself and leaves you a summary of what's `done`, what's `blocked`, and why.
+When a step can't pass after its refactor rounds, the loop doesn't stall waiting for you. The step is marked `blocked`, everything that depends on it waits, and independent work carries on. When there's nothing left to do (or the dependency graph turns out to deadlock), the loop closes itself and leaves you a summary of what's `done`, what's `blocked`, and why.
 
 ## Cost and benchmarks
 

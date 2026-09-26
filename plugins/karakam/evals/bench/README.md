@@ -35,7 +35,6 @@ The default scenario's plan is deliberately well specified — no version measur
 |---|---|---|
 | `stokcu` (clean) | $1.83 · 18/18 · 0 refactor rounds (2 runs) | $1.46 · 18/18 · 0 rounds (3 runs) |
 | `refactor` | $2.23 · 21/21 · ~10.5 min (2 runs) | $1.66 · 21/21 · ~4.3 min (3 runs) |
-
 | `refactor`, step 01 hardened (casing + NFD + accents) | — | $1.66 · 30/30 · 1 round (3 runs) |
 | `refactor`, hardened, `--inject-fault worker-low` | — | $1.97 · 30/30 · 2 rounds (2 runs) |
 

@@ -21,15 +21,13 @@ Amaç, insansız saatlerce sürebilen ve context'i patlatmayan bir iş akışı.
 Skill'ler eklentiye göre isimlendirilir: `/karakam:hacivat` ve `/karakam:karagoz`.
 
 <details>
-<summary>Ya da elle kur (marketplace olmadan)</summary>
+<summary>Ya da bir klondan çalıştır</summary>
 
 ```bash
 git clone https://github.com/azizi2407/karakam.git
-mkdir -p ~/.claude/skills
-cp -R karakam/plugins/karakam/skills/hacivat ~/.claude/skills/
-cp -R karakam/plugins/karakam/skills/karagoz ~/.claude/skills/
+claude --plugin-dir karakam/plugins/karakam      # tek oturum için
 ```
-O zaman sadece `/hacivat` ve `/karagoz` olarak çalışırlar.
+Ya da klondan kalıcı olarak kur: `/plugin marketplace add ./karakam`, ardından `/plugin install karakam@kara-skills`. Sadece skill klasörlerini `~/.claude/skills/` altına kopyalamak işe yaramaz: skill'ler eklentinin `karakam:` alt-ajanlarını çağırır ve bunlar yalnızca karakam bir eklenti olarak yüklendiğinde vardır.
 </details>
 
 ## Kullanım
@@ -43,14 +41,14 @@ O zaman sadece `/hacivat` ve `/karagoz` olarak çalışırlar.
 ✅ Plan hazır: 7 adım, ./my-project/plan/ — tahmini yürütme: ~$5–9
 
 Devretmek için:
-0. Çalışmanı ve planı commit'le: git add -A && git commit -m "plan"
+0. Önce kendi çalışmanı, sonra planı commit'le: git add ./my-project/plan && git commit -m "plan"
 1. /clear
 2. /model opus                 (oturum zaten Opus'taysa atla)
 3. /autocompact 150k
 4. /loop 20m karagoz: ./my-project/plan/ içindeki planı uygula
 ```
 
-Önce commit'le: Karagöz her biten adımı git ile kaydeder ve başarısız olanı kendi dosyalarında geri alır, bu yüzden temiz bir çalışma ağacından başlamalı. `/clear` önemli — yürütme aşaması temiz bir context ile başlamalı; bu temiz başlangıç aynı zamanda model ya da compaction ayarını değiştirmenin hiçbir şeye mal olmadığı tek an. `/autocompact` penceresi plana göre ayarlanır — paralel koşan adım sayısına göre 150k–250k. Claude Code'un Opus 5.5 için varsayılanı 1M token; bu, her turda yeniden gönderilen loop konuşmasının saatlerce büyümesine izin verir. Daha küçük bir pencere bunu sınırlar ama compaction'lar arasında birkaç tick'lik yer bırakır (compaction pencerenin ~33K altında tetiklenir, bir oturum da daha iş başlamadan ~35–50K ile açılır). API key kullanıyorsan aralığı kaldır (`/loop karagoz: …`): orada prompt cache beş dakika yaşar ve 20 dakikalık bir boşluk her tick'te tüm konuşmanın cache'e yeniden yazılması demektir. Ardından Karagöz devralır ve planı kendi başına yürütür, iş bittiğinde loop'u kendisi kapatır.
+Önce commit'le (git projesindeysen): Karagöz her biten adımı git ile kaydeder ve başarısız olanı kendi dosyalarında geri alır, bu yüzden temiz bir çalışma ağacından başlamalı — kendi değişikliklerini, başıboş dosyaları da süpürecek toptan bir `git add -A` yerine kendin commit'le. `/clear` önemli — yürütme aşaması temiz bir context ile başlamalı; bu temiz başlangıç aynı zamanda model ya da compaction ayarını değiştirmenin hiçbir şeye mal olmadığı tek an. `/autocompact` penceresi plana göre ayarlanır — paralel koşan adım sayısına göre 150k–250k. Claude Code'un Opus 5.5 için varsayılanı 1M token; bu, her turda yeniden gönderilen loop konuşmasının saatlerce büyümesine izin verir. Daha küçük bir pencere bunu sınırlar ama compaction'lar arasında birkaç tick'lik yer bırakır (compaction pencerenin ~33K altında tetiklenir, bir oturum da daha iş başlamadan ~35–50K ile açılır). API key kullanıyorsan aralığı kaldır (`/loop karagoz: …`): orada prompt cache beş dakika yaşar ve 20 dakikalık bir boşluk her tick'te tüm konuşmanın cache'e yeniden yazılması demektir. Ardından Karagöz devralır ve planı kendi başına yürütür, iş bittiğinde loop'u kendisi kapatır.
 
 **Bu skill'ler sadece adları anıldığında çalışır.** İsteğiniz onlara ne kadar uygun görünse görünsün, kendiliklerinden tetiklenmezler. Bu bilinçli bir tercih: pahalı bir makine devreye giriyor ve buna değip değmeyeceğine sen karar veriyorsun.
 
@@ -74,7 +72,7 @@ Her alt-ajan bir plugin agent'ı (`plugins/karakam/agents/`): protokolü, araçl
 plan/
 ├── methodology.md     # anayasa: hedef, teknoloji yığını, yöntemler, bütünlük kuralları, DoD
 ├── progress.md        # ince defter — Koordinatör'ün okuduğu TEK dosya
-├── steps/NN.md        # kendi kendine yeten adımlar: worker prompt'u, model, kabul kriterleri
+├── steps/NN.md        # kendi kendine yeten adımlar: worker prompt'u, effort, kabul kriterleri
 ├── logs/  reports/    # Worker logları ve uzun Observer raporları
 ```
 
@@ -91,7 +89,7 @@ Loop'un birkaç tick sonra çökmek yerine saatlerce dönebilmesini sağlayan ş
 
 ### Bağımsız adımlarda paralellik
 
-`files_touched` listeleri kesişmeyen adımlar aynı tick'te paralel çalıştırılabilir — her biri kendi git worktree'sinde izole edilir, böylece bir Worker'ın değişiklikleri başka bir adımın kapsam ihlali gibi görünmez. Adım geçtiğinde ana ağaca merge edilir; kaldığında worktree ana ağaca hiç dokunmadan çöpe atılır. Kesişen `files_touched`'lar hâlâ sırayla, tek tek işlenir. Paylaşılan kökte tek başına çalışan bir adım da geçtiğinde orada commit'lenir — bu checkpoint, çökme kurtarmasındaki `git checkout -- <files>` komutunu güvenli kılar (sadece bu adımın kendi commit'lenmemiş işini geri alabilir, daha önceki bir `done` adımı asla) ve bir sonraki paralel grubun doğru bir dal noktasından başlamasını sağlar.
+`files_touched` listeleri kesişmeyen adımlar aynı tick'te paralel çalıştırılabilir — her biri kendi git worktree'sinde izole edilir, böylece bir Worker'ın değişiklikleri başka bir adımın kapsam ihlali gibi görünmez. Adım geçtiğinde kendi worktree'sinde commit'lenir ve ana ağaca merge edilir; kaldığında worktree ana ağaca hiç dokunmadan çöpe atılır. Kesişen `files_touched`'lar hâlâ sırayla, tek tek işlenir. Paylaşılan kökte tek başına çalışan bir adım da geçtiğinde, defter onu `done` saymadan önce orada commit'lenir. Bu checkpoint, başarısız ya da yarım kalmış bir adımı geri almayı güvenli kılar — geri alma yalnızca o adımın kendi commit'lenmemiş işine ulaşır, daha önceki bir `done` adımına asla — ve bir sonraki paralel grubun doğru bir dal noktasından başlamasını sağlar. Bu commit ve geri almalar, bir adımın yarattığı ya da sildiği dosyaları da doğru işleyen küçük bir script'ten (`skills/karagoz/scripts/stepgit.sh`) geçer; bir dosya listesi üzerinde düz `git add` / `git checkout` bunları sessizce yanlış yapar.
 
 ### Derinlemesine savunma — insan gerekmeden
 

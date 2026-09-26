@@ -12,12 +12,16 @@ Checks:
   - the two handoff-contract.md copies are byte-identical;
   - plugin.json and marketplace.json agree on name, version and description,
     and every JSON manifest parses;
-  - README.md and README.tr.md have the same section structure;
-  - every eval case.yaml parses.
+  - README.md and README.tr.md have the same structure (headings, code blocks,
+    table rows);
+  - every eval case.yaml parses;
+  - karagoz's scripts/stepgit.sh commits and reverts exactly a step's files,
+    including new, deleted and never-existing paths.
 """
 import json
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 try:
@@ -92,15 +96,19 @@ else:
 
 # 5. README parity (same number of headings at each level)
 def outline(path):
-    heads, fenced = [], False
+    """Headings, code fences and table rows, in order — language-independent."""
+    shape, fenced = [], False
     for line in path.read_text(encoding="utf-8").splitlines():
         if line.startswith("```"):
             fenced = not fenced
+            shape.append("```")
         elif not fenced and line.startswith("#"):
-            heads.append(line.split(" ", 1)[0])
-    return heads
+            shape.append(line.split(" ", 1)[0])
+        elif not fenced and line.startswith("|"):
+            shape.append("|" * line.count("|"))
+    return shape
 if outline(ROOT / "README.md") != outline(ROOT / "README.tr.md"):
-    err("README.md and README.tr.md have different heading structures")
+    err("README.md and README.tr.md differ in structure (headings, code blocks or table rows)")
 
 # 6. eval cases
 for case in sorted((PLUGIN / "evals").glob("*/case.yaml")):
@@ -108,6 +116,63 @@ for case in sorted((PLUGIN / "evals").glob("*/case.yaml")):
         yaml.safe_load(case.read_text(encoding="utf-8"))
     except yaml.YAMLError as e:
         err(f"{case.relative_to(ROOT)}: invalid YAML ({str(e).splitlines()[0]})")
+
+# 7. stepgit.sh behaviour
+STEPGIT = PLUGIN / "skills" / "karagoz" / "scripts" / "stepgit.sh"
+
+
+def git(repo, *args):
+    return subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True)
+
+
+def write(repo, name, text):
+    path = Path(repo, name)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
+
+
+def dirty(repo):
+    write(repo, "mod.txt", "changed\n")
+    Path(repo, "del.txt").unlink(missing_ok=True)
+    write(repo, "new.txt", "new\n")
+    write(repo, "staged.txt", "staged\n")
+    git(repo, "add", "staged.txt")
+    write(repo, "src/pkg/deep.py", "x = 1\n")
+    write(repo, "other.txt", "user edit\n")  # outside the step: must survive
+
+
+with tempfile.TemporaryDirectory() as repo:
+    git(repo, "init", "-q")
+    for k, v in (("user.email", "check@example.com"), ("user.name", "check"), ("commit.gpgsign", "false")):
+        git(repo, "config", k, v)
+    for name in ("mod.txt", "del.txt", "other.txt"):
+        write(repo, name, name + "\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-qm", "init")
+    step = ["mod.txt", "del.txt", "new.txt", "staged.txt", "src/pkg/deep.py", "never.txt"]
+    run = lambda *a: subprocess.run(["bash", str(STEPGIT), *a], cwd=repo, capture_output=True, text=True)
+
+    dirty(repo)
+    r = run("revert", *step)
+    status = git(repo, "status", "--porcelain").stdout.split()
+    if r.returncode or status != ["M", "other.txt"] or Path(repo, "del.txt").read_text() != "del.txt\n":
+        err(f"stepgit.sh revert left the tree wrong: exit {r.returncode}, status {status}, {r.stderr.strip()}")
+
+    git(repo, "checkout", "-q", "--", "other.txt")
+    dirty(repo)
+    r = run("commit", "karagoz step 01: check", *step)
+    committed = sorted(git(repo, "show", "--name-only", "--format=", "HEAD").stdout.split())
+    if r.returncode or committed != sorted(step[:-1]) or \
+            git(repo, "status", "--porcelain").stdout.split() != ["M", "other.txt"]:
+        err(f"stepgit.sh commit committed {committed}, exit {r.returncode}, {r.stderr.strip()}")
+
+    hook = Path(repo, ".git", "hooks", "pre-commit")
+    hook.write_text("#!/bin/sh\nexit 1\n")
+    hook.chmod(0o755)
+    write(repo, "mod.txt", "again\n")
+    r = run("commit", "failing", "mod.txt")
+    if r.returncode == 0 or git(repo, "diff", "--cached", "--name-only").stdout.strip():
+        err("stepgit.sh commit should fail cleanly (nothing left staged) when the commit is rejected")
 
 if errors:
     print("\n".join(f"✗ {e}" for e in errors))

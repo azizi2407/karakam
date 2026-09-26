@@ -31,11 +31,11 @@ Every `/loop` tick runs in the same conversation, so everything you put into you
 - **Read only `progress.md`.** Not `methodology.md`, not `logs/`, not the code — those belong to the sub-agents. The files under `references/` are for the situations named below; open one only when its situation arises.
 - **Mark `in_progress` before you spawn.** This one extra write is what lets the next tick recover a crashed one instead of silently duplicating it.
 - **Batch your own calls.** One edit per ledger change covering every affected row; independent tool calls in one message.
-- **At scale, archive.** On a plan of 30+ steps, when `progress.md` itself gets expensive to read, move rows that are `done` and whose dependents are all `done` into `progress-archive.md`, leaving a stub (`| NN | done | archived |`).
+- **At scale, archive.** On a plan of 30+ steps, when `progress.md` itself gets expensive to read, move rows that are `done` and whose dependents are all `done` into `progress-archive.md`, leaving a stub row (`| NN | done | - | - | - | - | archived |`).
 
 ## A tick
 
-The handoff contract (the ledger and step-file format) is in `references/handoff-contract.md`, identical to Hacivat's.
+The handoff contract (the ledger and step-file format) is in `references/handoff-contract.md`, identical to Hacivat's. Git operations on a step's files go through `scripts/stepgit.sh` in this skill's base directory — `commit` and `revert` handle new, deleted and missing paths, which plain `git add` / `git checkout` on a `files_touched` list do not.
 
 ### 1. Read the ledger
 
@@ -43,6 +43,7 @@ Read `<plan-dir>/progress.md`.
 
 - A row still `in_progress` or `refactoring` means the tick that owned it died. Follow `references/recovery.md` for each such step before anything else.
 - **Eligible** = `pending` and every `depends_on` step `done`. None eligible → **End of loop**.
+- A `pending` row whose note carries `refactor r/3 @<effort>` was interrupted mid-refactor: its next Worker runs at that effort and the round count carries on from `r`.
 - The row gives you `effort` and `critical`. A plan from before `effort` existed has a `model` column instead: read `opus` / `sonnet` / `haiku` as `high` / `medium` / `low`. If a row has neither, fill both columns once from the step files and carry on.
 
 ### 2. Send the Workers
@@ -60,17 +61,18 @@ A Worker or Observer call that returns nothing or errors out is a `FAIL: agent c
 
 ### 3. Have Observers audit it
 
-As soon as a Worker returns, audit its step:
+Audit each step once its Worker has returned — the Observers of a whole batch can go out in one message:
 
 - **Not critical** → one `karakam:observer-medium`.
-- **`critical: true`** → two `karakam:observer-high` in a single message, one with the lens *behavior* ("run it: does it actually work and produce the right output?") and one with the lens *integrity* ("is it faithful to the methodology and consistent with the rest of the system?"). If either says FAIL, the step fails.
-- **Message:** the project root (or worktree path plus the branch it was created from), the step file path, the log path `<plan-dir>/logs/NN.md`, and the lens if any.
+- **Critical** (`yes` in the ledger) → two `karakam:observer-high`, one with the lens `behavior` ("run it: does it actually work and produce the right output?") and one with the lens `integrity` ("is it faithful to the methodology and consistent with the rest of the system?"). If either says FAIL, the step fails.
+- **Message:** the tree the step ran in (project root or its worktree), the step file and log paths (`<plan-dir>/logs/NN.md`, absolute, in the main tree), and the lens if any.
 
 ### 4. Record the outcome
 
-- **PASS** → mark the step `done` with a one-line note. Then checkpoint it: a worktree step is merged back (`references/parallel.md`); a step that ran in the project root is committed there — `git add <files_touched> && git commit -m "karagoz step NN: <title>"` (skip in a non-git project). The commit is load-bearing, not bookkeeping: recovery and blocked-step cleanup revert with `git checkout -- <files>`, which resets to HEAD, and parallel worktrees branch from HEAD — an uncommitted `done` step would be silently destroyed by the first and invisible to the second.
+- **PASS** → checkpoint first, then mark it `done` with a one-line note. A step that ran in the project root is committed there: `stepgit.sh commit "karagoz step NN: <title>" <files_touched>`; a worktree step is committed in its worktree and merged back (`references/parallel.md`). In a non-git project there is nothing to checkpoint. The order matters: recovery and blocked-step cleanup revert a step's files to HEAD, and parallel worktrees branch from HEAD, so a step marked `done` before its commit lands could be silently destroyed or be invisible to the next batch; with the commit first, a crash in between is recognisable from the commit message (see `references/recovery.md`).
+  - If the commit itself fails (a failing hook, no git identity), the step passed but isn't checkpointed, and every later step would hit the same wall. Mark it `blocked` with the git error in the note, leave its files as they are, and end the loop, telling the user what to fix.
 - **FAIL** → if the Worker followed the spec and the spec itself looks wrong (the Observer's evidence contradicts the spec, or the two critical Observers disagree), follow `references/failure.md` before refactoring. Otherwise refactor within the step:
-  - Mark it `refactoring` with the round and effort in the note, e.g. `refactor 1/3 @high` — the note is the only place a later tick can see how many rounds are spent.
+  - Mark it `refactoring` with the round and effort in the note, e.g. `refactor 1/3 @high` — the note is the only place a later tick can see how many rounds are spent. Keep any `recovered Nx` already in the note.
   - Each round, send a new Worker one effort level up from the previous round (`low` → `medium` → `high` → `xhigh`, then it stays at `xhigh`), with the Observer's findings or report path in its message. Then audit again.
   - If a round changed only a plan or doc file and no code, re-run only the Observer lens that objected.
   - At most three rounds. PASS → as above. Still FAIL → mark it `blocked`, clean up per `references/failure.md`, and continue: its dependents wait, independent steps carry on next tick.

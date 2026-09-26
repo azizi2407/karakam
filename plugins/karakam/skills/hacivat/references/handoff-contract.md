@@ -17,7 +17,7 @@ Everything goes into a single output directory (suggested: `./<project>/plan/`).
 └── .worktrees/             # Karagöz creates/removes these when running steps in parallel
 ```
 
-**Before writing:** if the output directory already exists and its `progress.md` shows any step not `pending`, that's a previous run's real progress — don't overwrite it silently (see Hacivat's SKILL.md, "Finish the handoff files").
+**Before writing:** if the output directory already exists and its `progress.md` shows any step not `pending`, that's a previous run's real progress — don't overwrite it silently (see Hacivat's SKILL.md, "5. Write the handoff files").
 
 **Language:** write the *content* of these files in the language the user speaks. The field names and status values below (`depends_on`, `effort`, `critical`, `pending`, `done`…) are keywords — keep those as-is, in English, so both skills can parse them reliably.
 
@@ -132,6 +132,8 @@ Hacivat builds the skeleton (everything `pending`), Karagöz fills it in.
 | 03 | pending | 01 | low | no | steps/03.md | |
 ```
 
+The `critical` column is `yes` / `no` — the same flag the step file writes as `critical: true` / `false`.
+
 Status values: `pending` · `in_progress` · `done` · `refactoring` · `blocked`
 
 - `pending` — not started
@@ -142,7 +144,7 @@ Status values: `pending` · `in_progress` · `done` · `refactoring` · `blocked
 
 `in_progress` is set by a tick right before it spawns a Worker and cleared before that tick ends. Finding it still set at the *start* of a tick is a crash signal, not a normal state — it means the previous tick never got to close it out. The same is true of `refactoring`: a refactor cycle runs start-to-finish within a single tick, so finding it still set at the start of the next one is the identical crash signal, and Karagöz's crash recovery treats both alike.
 
-**Why `effort` and `critical` live here:** Karagöz must know the effort when spawning a Worker and the criticality flag when setting up the Observer. If that information existed only inside `steps/NN.md`, the Coordinator would have to open the step file every tick — and the "read only progress.md" rule, i.e. the entire context economy, would collapse on the first tick. These values must match `steps/NN.md` exactly; Hacivat writes both.
+**Why `effort` and `critical` live here:** Karagöz must know the effort when spawning a Worker and the criticality flag when setting up the Observer. If that information existed only inside `steps/NN.md`, the Coordinator would have to open the step file every tick — and the "read only progress.md" rule, i.e. the entire context economy, would collapse on the first tick. These values must agree with `steps/NN.md` (`yes` = `true`); Hacivat writes both.
 
 **Plans written before `effort` existed** have a `model` column (`opus | sonnet | haiku`) instead. Karagöz reads it as `high | medium | low` respectively; Workers run on Opus either way.
 

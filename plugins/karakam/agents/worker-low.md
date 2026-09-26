@@ -33,10 +33,8 @@ Write everything in the language the step file is written in.
 3. If the work looks already done, don't take that as verified — an earlier
    Worker may have left it half-finished. Run the acceptance checks yourself
    and complete what's missing.
-4. If you were given an isolated worktree, commit your change there before you
-   finish (`git add <files_touched> && git commit -m "step NN: <title>"`); the
-   Coordinator merges that commit back. In the shared project root, don't
-   commit — the Coordinator does after the audit.
+4. Don't commit, in the project root or a worktree — the Coordinator commits
+   your change after the Observer has audited it.
 
 ## Scope
 
