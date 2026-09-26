@@ -113,21 +113,27 @@ Tek bir Observer — **ikisinden hangisi olursa olsun** — bunun geçmesine izi
 
 Bir adım refactor turlarından sonra da geçemezse, loop seni bekleyip durmaz. Adım `blocked` olarak işaretlenir, ona bağımlı olan her şey bekler, bağımsız işler devam eder. Yapacak bir şey kalmadığında (ya da plan grafiğinde bir döngü/kilitlenme varsa) loop kendini kapatır ve sana neyin `done`, neyin `blocked` olduğunun ve nedeninin özetini bırakır.
 
-## Maliyet
+## Maliyet ve benchmark'lar
 
-Tahmin değil, ölçüm: [`plugins/karakam/evals/bench`](plugins/karakam/evals/bench) iki yarıyı sabit görevlerde headless koşturur ve faturayı rollere böler; ajanların hiç görmediği gizli kabul testleri de ürünü notlar. Fiyatlar Opus 5.5'in API liste fiyatları; abonelikteysen bunları bir koşunun kullanımından ne kadar yiyeceği olarak oku.
+Tahmin değil, ölçüm. [`plugins/karakam/evals/bench`](plugins/karakam/evals/bench) iki yarıyı sabit görevlerde headless koşturur, faturayı rollere böler ve ürünü ajanların hiç görmediği gizli kabul testleriyle notlar. Fiyatlar Opus 5.5'in API liste fiyatları; abonelikteysen bunları bir koşunun kullanımından ne kadar yiyeceği olarak oku.
 
-| | 1.1 (Sonnet/Haiku alt-ajanlar) | 1.2 (her şey Opus'ta, effort ayarlı) |
+| Benchmark | 1.1 (Sonnet/Haiku alt-ajanlar) | 1.2 (her şey Opus'ta, effort ayarlı) |
 |---|---|---|
-| Karagöz — 3 adımlı plan, 2 paralel + 1 kritik | $1.83 · gizli testler 18/18 | **$1.46** · gizli testler 18/18 |
-| Karagöz — mevcut bir kod tabanında zor 3 adımlı plan, bir adımda spec hatası (1 refactor turu) | $2.23 · 21/21 · ~10,5 dk | **$1.66** · 21/21 · ~4,3 dk |
-| Hacivat — 6 adımlı bir planın planlanması, eleştiri paneli dahil | $3.35 | **$3.08** |
+| **Karagöz, temiz koşu** — 3 adımlı plan, 2 paralel + 1 kritik | $1.83 · gizli testler 18/18 | **$1.46** · 18/18 |
+| **Karagöz, zor koşu** — mevcut kod tabanı, planlanmış bir spec hatası (1 refactor turu) | $2.23 · 21/21 · ~10,5 dk | **$1.66** · 21/21 · ~4,3 dk |
+| **Karagöz, zor koşu + özensiz ilk Worker** (hata enjeksiyonu, 2 refactor turu) | — | $1.97 · 30/30 |
+| **Hacivat** — 6 adımlı bir planın planlanması, eleştiri paneli dahil | $3.35 | **$3.08** |
 
-Worker'ları, Observer'ları ve eleştirmenleri Sonnet/Haiku'dan Opus'a taşımak iki yarıyı da *ucuzlattı*, üç sebeple: medium effort'taki Opus 5.5 daha az turda bitiriyor; Koordinatör inceldi (her çağrıda yeniden yazılan prompt şablonları yerine plugin agent'ları, nadir yollar gerektiğinde yükleniyor) — yürütme faturasının %30–40'ı ondaydı; ve eleştiri panelinin sonraki turları tüm planı sıfırdan incelemek yerine önceki itirazların kapanıp kapanmadığını doğruluyor. (Bu son değişiklik olmadan Opus eleştirmenleri her turda yeni bir major itiraz dalgası çıkardı ve planlama $5.18'e mal oldu.)
+**Her şey Opus'ta koştuğu hâlde 1.2 neden daha ucuz:** medium effort'taki Opus 5.5 daha az turda bitiriyor; yürütme faturasının %30–40'ını tutan Koordinatör inceldi (her çağrıda yeniden yazılan prompt şablonları yerine plugin agent'ları, nadir yollar gerektiğinde yükleniyor); ve eleştiri panelinin sonraki turları tüm planı sıfırdan incelemek yerine önceki itirazların kapanıp kapanmadığını doğruluyor. Bu son değişiklik olmadan Opus eleştirmenleri her turda yeni bir major itiraz dalgası çıkardı ve planlama $5.18'e mal oldu.
 
-Adım başına beklenti: küçük ve iyi tanımlanmış bir adım baştan sona yaklaşık **$0.3–0.5**, daha büyüğü ~$1'a kadar, kritik bir adım (high effort'ta iki Observer) bunun yaklaşık iki katı; her refactor turu bir Worker ve bir Observer koşusu daha ekler. Hacivat bunu başlamadan önce senin planın için bir aralığa çevirir.
+**Bir adım başarısız olunca nasıl toparlanıyor:**
+- **Plandaki hata tekrar denenmez, düzeltilir.** İki sürümün de her zor koşusunda, `files_touched` listesi dar tutulmuş adım ilk denetimde kaldı; Koordinatör bunu tek adımlık bir spec hatası olarak tanıdı, listeyi genişletti ve adım bir sonraki turda geçti — aynı effort ile, çünkü yanlış bir spec daha çok düşünerek düzelmez.
+- **Zayıf bir Worker'ın yerine daha güçlüsü gelir.** İlk Worker kasten özensiz bir geçişle değiştirildiğinde Observer her seferinde reddetti; bir sonraki tur bir effort kademesi yukarı çıktı (`low → medium`) ve geçti, maliyeti ~$0.30 fazlaydı.
+- **Low effort'taki Opus'un buna nadiren ihtiyacı oluyor.** Kuralları birbiriyle etkileşen (Türkçe büyük/küçük harf, Unicode normalizasyonu, aksan duyarlılığı — her yanlış kestirme gizli testlerde kalıyor) `low` etiketli bir adım 6 koşunun 6'sında ilk geçişte çözüldü.
 
-Zor senaryoda iki sürümün her koşusu da planlanmış spec hatasına takıldı, bunu tek adımlık bir hata olarak tanıdı, adımın `files_touched` listesini genişletti ve bir sonraki turda geçti; 1.2 bunu dörtte bir daha ucuza ve yarıdan az sürede yaptı. İkinci tuzak — kuralları birbiriyle etkileşen (Türkçe büyük/küçük harf, Unicode normalizasyonu, aksan duyarlılığı) `low` effort etiketli bir adım — hiçbir Worker'ı yakalamadı: low effort'taki Opus 6 koşunun 6'sında doğru yaptı. O Worker kasten özensiz bir ilk geçişle değiştirildiğinde (`--inject-fault`) Observer her seferinde reddetti, bir sonraki tur bir effort kademesi yukarı çıkıp geçti; maliyeti ~$0.30 fazlaydı. Büyük, otonom bir işte bütün bu makine ucuza gelir — bozuk bir plan saatlerce yanlış çıktı demektir. Küçük bir işte fazlasıyla abartı; onun yerine düz Claude Code kullan.
+**Adım başına beklenti:** küçük ve iyi tanımlanmış bir adım baştan sona yaklaşık **$0.3–0.5**, daha büyüğü ~$1'a kadar, kritik bir adım (high effort'ta iki Observer) bunun yaklaşık iki katı; her refactor turu bir Worker ve bir Observer koşusu daha ekler. Hacivat bunu başlamadan önce senin planın için bir aralığa çevirir.
+
+Bunlar küçük, sabit görevler — göreli maliyeti ve toparlanmanın çalışıp çalışmadığını gösteriyorlar, gerçek bir işte adımların ne sıklıkla kaldığını değil. Büyük, otonom bir işte bütün bu makine ucuza gelir: bozuk bir plan saatlerce yanlış çıktı demektir. Küçük bir işte fazlasıyla abartı; onun yerine düz Claude Code kullan.
 
 ## Gereksinimler
 

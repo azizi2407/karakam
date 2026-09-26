@@ -113,21 +113,27 @@ A single Observer — **either one of them** — would have let that through.
 
 When a step can't pass after its refactor rounds, the loop doesn't stall waiting for you. The step is marked `blocked`, everything that depends on it waits, and independent work carries on. When there's nothing left to do, the loop closes itself and leaves you a summary of what's `done`, what's `blocked`, and why.
 
-## Cost
+## Cost and benchmarks
 
-Measured, not guessed: [`plugins/karakam/evals/bench`](plugins/karakam/evals/bench) runs both halves headless on fixed tasks and splits the bill by role, and hidden acceptance tests the agents never see grade the product. API list prices on Opus 5.5; on a subscription read them as how much of your usage a run takes.
+Measured, not guessed. [`plugins/karakam/evals/bench`](plugins/karakam/evals/bench) runs both halves headless on fixed tasks, splits the bill by role, and grades the product with hidden acceptance tests the agents never see. Prices are Opus 5.5 API list prices; on a subscription, read them as how much of your usage a run takes.
 
-| | 1.1 (Sonnet/Haiku sub-agents) | 1.2 (everything on Opus, effort-tuned) |
+| Benchmark | 1.1 (Sonnet/Haiku sub-agents) | 1.2 (all Opus, effort-tuned) |
 |---|---|---|
-| Karagöz — 3-step plan, 2 parallel + 1 critical | $1.83 · hidden tests 18/18 | **$1.46** · hidden tests 18/18 |
-| Karagöz — hard 3-step plan on an existing codebase, one step with a spec fault (1 refactor round) | $2.23 · 21/21 · ~10.5 min | **$1.66** · 21/21 · ~4.3 min |
-| Hacivat — planning a 6-step plan, critic panel included | $3.35 | **$3.08** |
+| **Karagöz, clean run** — 3-step plan, 2 parallel + 1 critical | $1.83 · hidden tests 18/18 | **$1.46** · 18/18 |
+| **Karagöz, hard run** — existing codebase, a planted spec fault (1 refactor round) | $2.23 · 21/21 · ~10.5 min | **$1.66** · 21/21 · ~4.3 min |
+| **Karagöz, hard run + sloppy first Worker** (fault injection, 2 refactor rounds) | — | $1.97 · 30/30 |
+| **Hacivat** — planning a 6-step plan, critic panel included | $3.35 | **$3.08** |
 
-Moving the Workers, Observers and critics from Sonnet/Haiku to Opus made both halves *cheaper*, for three reasons: Opus 5.5 at medium effort finishes in fewer turns; the Coordinator got thinner (plugin agents instead of prompt templates re-typed on every call, rare paths loaded on demand) — it was 30–40% of the execution bill; and the critic panel's later rounds verify earlier objections instead of reviewing the whole plan afresh. (Without that last change, Opus critics raised a new crop of major objections every round and planning cost $5.18.)
+**Why 1.2 is cheaper despite running everything on Opus:** Opus 5.5 at medium effort finishes in fewer turns; the Coordinator — 30–40% of the execution bill — got thinner (plugin agents instead of prompt templates re-typed on every call, rare paths loaded on demand); and the critic panel's later rounds verify earlier objections instead of reviewing the whole plan afresh. Without that last change, Opus critics raised a new crop of major objections every round and planning cost $5.18.
 
-What to expect per step: a small, well-specified step runs about **$0.3–0.5** end to end, a larger one up to ~$1, a critical step (two Observers at high effort) about twice that, and every refactor round adds another Worker and Observer run. Hacivat turns that into a range for your plan before you start.
+**How it recovers when a step fails:**
+- **A fault in the plan gets fixed, not retried.** In every hard run of both versions, the step whose `files_touched` was too narrow failed its first audit; the Coordinator recognised a single-step spec fault, widened the list, and the step passed on the next round — at the same effort, since more thinking can't fix a wrong spec.
+- **A weak Worker gets a stronger one.** With the first Worker replaced by a deliberately sloppy pass, the Observer rejected it every time and the next round went one effort level up (`low → medium`) and passed, for about $0.30 more.
+- **Opus at low effort rarely needs that.** A step labelled `low` whose rules interact (Turkish casing, Unicode normalization, accent sensitivity — each wrong shortcut fails the hidden tests) was solved on the first pass in 6 of 6 runs.
 
-In the hard scenario every run of both versions hit the planted spec fault, recognised it as a single-step fault, widened the step's `files_touched`, and passed on the next round; 1.2 did it for a quarter less money in well under half the time. A second trap — a step labelled `low` effort whose rules interact (Turkish casing, Unicode normalization, accent sensitivity) — caught no Worker: Opus at low effort got it right in 6 of 6 runs. With that Worker replaced by a deliberately sloppy first pass (`--inject-fault`), the Observer rejected it every time and the next round went one effort level up and passed, for about $0.30 more. On a large autonomous job the whole machine is a bargain — a broken plan means hours of wrong output. On a small one it's overkill; use plain Claude Code instead.
+**What to expect per step:** a small, well-specified step runs about **$0.3–0.5** end to end, a larger one up to ~$1, a critical step (two Observers at high effort) about twice that, and every refactor round adds another Worker and Observer run. Hacivat turns that into a range for your plan before you start.
+
+These are small, fixed tasks — they show relative cost and whether recovery works, not how often a real job's steps fail. On a large autonomous job the whole machine is a bargain: a broken plan means hours of wrong output. On a small one it's overkill; use plain Claude Code instead.
 
 ## Requirements
 
