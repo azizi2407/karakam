@@ -25,3 +25,12 @@ Each run snapshots the plugin at launch (`results/<mode>/<label>/plugin/`), so y
 `by_role` splits the cost into the main session (Coordinator or Hacivat), workers, observers and critics, read from the transcripts Claude Code keeps under `~/.claude/projects/`. The main session's first turn pays a one-hour cache write for its whole prefix; subagents write five-minute caches.
 
 The default scenario's plan is deliberately well specified — no version measured so far needed a refactor round on it — so it measures what a clean run costs. The `refactor` scenario measures recovery.
+
+## Results so far (Opus 5.5 Coordinator, API list prices)
+
+| scenario | 1.1 (Sonnet/Haiku sub-agents) | 1.2 (Opus, effort-tuned) |
+|---|---|---|
+| `stokcu` (clean) | $1.83 · 18/18 · 0 refactor rounds (2 runs) | $1.46 · 18/18 · 0 rounds (3 runs) |
+| `refactor` | $2.23 · 21/21 · ~10.5 min (2 runs) | $1.66 · 21/21 · ~4.3 min (3 runs) |
+
+In the `refactor` scenario every run of both versions caught step 02's spec fault on the first audit, widened `files_touched` to include `tests/test_rapor.py`, and passed after one round — 1.2 kept the step's effort for that round (`medium→medium`), as it should when the fault is the spec's. Step 01's casing trap caught no Worker, not even 1.1's Haiku, so the effort ladder is still unmeasured; a harder Worker-fault trap is the next thing this benchmark needs.

@@ -120,13 +120,14 @@ Tahmin değil, ölçüm: [`plugins/karakam/evals/bench`](plugins/karakam/evals/b
 | | 1.1 (Sonnet/Haiku alt-ajanlar) | 1.2 (her şey Opus'ta, effort ayarlı) |
 |---|---|---|
 | Karagöz — 3 adımlı plan, 2 paralel + 1 kritik | $1.83 · gizli testler 18/18 | **$1.46** · gizli testler 18/18 |
+| Karagöz — mevcut bir kod tabanında zor 3 adımlı plan, bir adımda spec hatası (1 refactor turu) | $2.23 · 21/21 · ~10,5 dk | **$1.66** · 21/21 · ~4,3 dk |
 | Hacivat — 6 adımlı bir planın planlanması, eleştiri paneli dahil | $3.35 | **$3.08** |
 
 Worker'ları, Observer'ları ve eleştirmenleri Sonnet/Haiku'dan Opus'a taşımak iki yarıyı da *ucuzlattı*, üç sebeple: medium effort'taki Opus 5.5 daha az turda bitiriyor; Koordinatör inceldi (her çağrıda yeniden yazılan prompt şablonları yerine plugin agent'ları, nadir yollar gerektiğinde yükleniyor) — yürütme faturasının %30–40'ı ondaydı; ve eleştiri panelinin sonraki turları tüm planı sıfırdan incelemek yerine önceki itirazların kapanıp kapanmadığını doğruluyor. (Bu son değişiklik olmadan Opus eleştirmenleri her turda yeni bir major itiraz dalgası çıkardı ve planlama $5.18'e mal oldu.)
 
 Adım başına beklenti: küçük ve iyi tanımlanmış bir adım baştan sona yaklaşık **$0.3–0.5**, daha büyüğü ~$1'a kadar, kritik bir adım (high effort'ta iki Observer) bunun yaklaşık iki katı; her refactor turu bir Worker ve bir Observer koşusu daha ekler. Hacivat bunu başlamadan önce senin planın için bir aralığa çevirir.
 
-Bu benchmark'ın planı iyi tanımlı; iki sürüm de tek bir refactor turuna girmeden geçiyor — yani temiz bir koşunun maliyetini ölçüyor, bir sürümün zor bir adımdan ne kadar iyi toparlandığını değil. Büyük, otonom bir işte bütün bu makine ucuza gelir — bozuk bir plan saatlerce yanlış çıktı demektir. Küçük bir işte fazlasıyla abartı; onun yerine düz Claude Code kullan.
+Zor senaryoda iki sürümün her koşusu da planlanmış spec hatasına takıldı, bunu tek adımlık bir hata olarak tanıdı, adımın `files_touched` listesini genişletti ve bir sonraki turda geçti; 1.2 bunu dörtte bir daha ucuza ve yarıdan az sürede yaptı. İkinci tuzak — `low` effort etiketli bir Türkçe büyük/küçük harf adımı — hiçbir Worker'ı, Haiku'yu bile yakalamadı; yani effort merdiveni henüz bir ölçümle sınanmadı. Büyük, otonom bir işte bütün bu makine ucuza gelir — bozuk bir plan saatlerce yanlış çıktı demektir. Küçük bir işte fazlasıyla abartı; onun yerine düz Claude Code kullan.
 
 ## Gereksinimler
 
