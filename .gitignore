@@ -1,1 +1,3 @@
 plugins/karakam/evals/results/
+plugins/karakam/evals/bench/results/
+__pycache__/

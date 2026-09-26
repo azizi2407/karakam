@@ -19,7 +19,7 @@ Everything goes into a single output directory (suggested: `./<project>/plan/`).
 
 **Before writing:** if the output directory already exists and its `progress.md` shows any step not `pending`, that's a previous run's real progress — don't overwrite it silently (see Hacivat's SKILL.md, "Finish the handoff files").
 
-**Language:** write the *content* of these files in the language the user speaks. The field names and status values below (`depends_on`, `model`, `critical`, `pending`, `done`…) are keywords — keep those as-is, in English, so both skills can parse them reliably.
+**Language:** write the *content* of these files in the language the user speaks. The field names and status values below (`depends_on`, `effort`, `critical`, `pending`, `done`…) are keywords — keep those as-is, in English, so both skills can parse them reliably.
 
 ---
 
@@ -72,10 +72,10 @@ One file per step, two-digit sequential number (`01.md`, `02.md`…). It must be
 ## Dependencies
 depends_on: [<step numbers>, or empty []]
 
-## Model
-model: opus | sonnet | haiku
+## Effort
+effort: low | medium | high
 critical: true | false
-rationale: <why this model / why critical>
+rationale: <why this effort / why critical>
 
 Only list a dependency that has a *real* reason: either this step writes to the
 same file as an earlier one, or it consumes a contract/file that step produced.
@@ -88,16 +88,20 @@ concurrently by Karagöz — an invented dependency serializes them for nothing.
  This is what lets the Worker skip reading the whole methodology.>
 
 ## Worker prompt
-<The full, self-contained instruction handed to the Worker. Include the
- "just code plus a short log, no commentary" discipline. State exactly what to
- do, which files to touch, which interfaces to honor.>
+<The task-specific instruction handed to the Worker: exactly what to do,
+ which files to touch, which interfaces to honor. The general Worker protocol
+ (test-first, scope lock, log, reply format) lives in the Worker agent
+ definition — don't repeat it here.>
 
 ## Acceptance criteria (executable, un-gameable)
 <Runnable checks that decide "done": which test must pass, which command must
  print what, which behavior must be observable.
  Make them un-gameable: forbid shortcuts ("do not create the file by hand"),
  require an observable side effect, and prefer signals that can't be faked
- (timing, ordering) over ones a Worker can stage.>
+ (timing, ordering) over ones a Worker can stage.
+ When the step changes something other code calls, at least one check goes
+ through that caller (the CLI, the client, the endpoint) — a unit test of the
+ changed piece alone passes while the product is still broken.>
 
 ## Observer checks
 <The concrete things the Observer must verify: fidelity to the methodology,
@@ -121,11 +125,11 @@ Hacivat builds the skeleton (everything `pending`), Karagöz fills it in.
 ```markdown
 # Progress
 
-| step | status | depends_on | model | critical | file | note |
-|------|--------|-----------|-------|----------|------|------|
-| 01 | pending | - | sonnet | no | steps/01.md | |
-| 02 | pending | 01 | opus | yes | steps/02.md | |
-| 03 | pending | 01 | sonnet | no | steps/03.md | |
+| step | status | depends_on | effort | critical | file | note |
+|------|--------|-----------|--------|----------|------|------|
+| 01 | pending | - | medium | no | steps/01.md | |
+| 02 | pending | 01 | high | yes | steps/02.md | |
+| 03 | pending | 01 | low | no | steps/03.md | |
 ```
 
 Status values: `pending` · `in_progress` · `done` · `refactoring` · `blocked`
@@ -138,7 +142,9 @@ Status values: `pending` · `in_progress` · `done` · `refactoring` · `blocked
 
 `in_progress` is set by a tick right before it spawns a Worker and cleared before that tick ends. Finding it still set at the *start* of a tick is a crash signal, not a normal state — it means the previous tick never got to close it out. The same is true of `refactoring`: a refactor cycle runs start-to-finish within a single tick, so finding it still set at the start of the next one is the identical crash signal, and Karagöz's crash recovery treats both alike.
 
-**Why `model` and `critical` live here:** Karagöz must know the model when spawning a Worker and the criticality flag when setting up the Observer. If that information existed only inside `steps/NN.md`, the Coordinator would have to open the step file every tick — and the "read only progress.md" rule, i.e. the entire context economy, would collapse on the first tick. These values must match `steps/NN.md` exactly; Hacivat writes both.
+**Why `effort` and `critical` live here:** Karagöz must know the effort when spawning a Worker and the criticality flag when setting up the Observer. If that information existed only inside `steps/NN.md`, the Coordinator would have to open the step file every tick — and the "read only progress.md" rule, i.e. the entire context economy, would collapse on the first tick. These values must match `steps/NN.md` exactly; Hacivat writes both.
+
+**Plans written before `effort` existed** have a `model` column (`opus | sonnet | haiku`) instead. Karagöz reads it as `high | medium | low` respectively; Workers run on Opus either way.
 
 **At scale, archive what's settled.** If the plan is large enough (30+ steps) that `progress.md` itself becomes costly to read every tick, Karagöz may move rows for steps that are `done` **and** whose dependents are all `done` too (so nothing will ever query them again) into `progress-archive.md`, leaving a one-line stub in the live table. Skip this on a normal-sized plan — it's ceremony the ledger doesn't need until it's genuinely bloated.
 
@@ -147,9 +153,9 @@ Status values: `pending` · `in_progress` · `done` · `refactoring` · `blocked
 ## What Karagöz expects (the consumer side)
 
 Karagöz relies on this contract:
-1. `progress.md` exists and uses the table format above, including `model` and `critical`.
+1. `progress.md` exists and uses the table format above, including `effort` and `critical`.
 2. Every `pending` step has a `steps/NN.md` and it is self-contained.
-3. Every step declares `model`, `critical`, `depends_on`, acceptance criteria and Observer checks.
+3. Every step declares `effort`, `critical`, `depends_on`, acceptance criteria and Observer checks.
 4. `logs/` and `reports/` directories exist (even if empty).
 
 With those four in place, Karagöz executes the plan without friction.

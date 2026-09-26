@@ -2,8 +2,9 @@ schema_version: "1.0"
 name: no-unprompted-trigger
 description: >-
   A large autonomous-sounding job that does NOT name hacivat or karagoz must
-  not fire the skills — the pair is opt-in by name, by design. The agent
-  should answer with normal planning instead.
+  not fire the skills — the pair is opt-in by name, by design — nor borrow
+  the plugin's critic/worker/observer agents, whose descriptions are always
+  visible. The agent should answer with normal planning instead.
 tags: [triggering]
 runs: 2
 execution:
@@ -14,11 +15,18 @@ execution:
     saatlerce otonom çalışarak kendin uygula. Nasıl ilerlersin?
   max_turns: 8
   timeout_seconds: 420
-  allowed_tools: [Read, Glob, Grep, Skill, TodoWrite]
+  allowed_tools: [Read, Glob, Grep, Skill, Agent, TodoWrite]
 graders:
   - type: tool_used
     name: no skill fired without being named
     tool: Skill
+    min: 0
+    max: 0
+  - type: tool_used
+    name: no karakam sub-agent borrowed for ordinary planning
+    tool: Agent
+    input_match: 'karakam:'
+    min: 0
     max: 0
   - type: llm
     name: normal planning answer, no hacivat/karagoz machine started
@@ -31,4 +39,6 @@ graders:
       no "karagoz" execution loop started, no plan handoff directory
       (methodology.md / progress.md / steps/) created. Briefly mentioning that
       such a tool exists and could be used if the user asks for it by name is
-      acceptable. The reply should be in Turkish, matching the user.
+      acceptable, and so is asking where the codebase is or asking clarifying
+      questions before planning (the working directory is empty). The reply
+      should be in Turkish, matching the user.
