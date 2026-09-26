@@ -72,6 +72,23 @@ def snapshot_plugin(dest, ref=None):
     return dest
 
 
+SLOPPY = """You are a Worker in a karakam plan, playing a deliberately sloppy first pass
+for a benchmark of the recovery path. Read the step file you are given, then
+implement only what its "Acceptance criteria" section literally tests — skip
+the "Relevant methodology" section and any rule the criteria don't check. Write
+tests only for those criteria, make them pass, write a short log to
+<plan-dir>/logs/NN.md, and stay inside files_touched. If you were given a
+worktree, commit there. Reply with: done, checks passed, files touched, log path.
+"""
+
+
+def inject_fault(plugin, agent):
+    """Replace one agent's body with a sloppy first pass (frontmatter kept)."""
+    f = plugin / "agents" / f"{agent}.md"
+    head = f.read_text(encoding="utf-8").split("---", 2)
+    f.write_text(f"---{head[1]}---\n\n{SLOPPY}", encoding="utf-8")
+
+
 def to_legacy_plan(plan):
     """Rewrite an effort-column plan into the pre-1.2 model-column contract."""
     prog = plan / "progress.md"
@@ -288,7 +305,9 @@ def agent_list(proj):
                 cost += (u.get("input_tokens", 0) * p[0] + u.get("output_tokens", 0) * p[1]
                          + u.get("cache_read_input_tokens", 0) * p[2] + w5 * p[3] + w1 * p[4]) / 1e6
         desc = m.get("description", "")
-        step = re.search(r"(?<!\d)(\d{1,2})(?!\d)", desc)
+        # "Refactor round 1 step 02": the number after step/adım is the step
+        step = (re.search(r"(?:step|ad[ıi]m)\s*#?0*(\d{1,2})(?!\d)", desc, re.I)
+                or re.search(r"(?<!\d)(\d{1,2})(?!\d)(?!.*(?<!\d)\d{1,2}(?!\d))", desc))
         out.append({"t": first, "type": m.get("agentType"), "role": role_of(desc, m.get("agentType", "")),
                     "desc": desc, "step": step.group(1).zfill(2) if step else None,
                     "model": (model or "").replace("claude-", ""), "effort": effort,
@@ -372,6 +391,9 @@ def main():
     ap.add_argument("--scenario", choices=sorted(SCENARIOS), default="stokcu",
                     help="karagoz only: which fixed plan to execute")
     ap.add_argument("--plugin-ref", help="git ref to benchmark instead of the working tree")
+    ap.add_argument("--inject-fault", metavar="AGENT",
+                    help="replace this agent's prompt with a sloppy first pass "
+                         "(e.g. worker-low) to exercise the refactor ladder")
     ap.add_argument("--legacy-plan", action="store_true",
                     help="karagoz only: convert the plan to the pre-1.2 model-column contract")
     a = ap.parse_args()
@@ -385,7 +407,11 @@ def main():
             r["agents"] = agent_list(sfile.parent / "proj")
             sfile.write_text(json.dumps(r, indent=1, ensure_ascii=False))
         return report()
-    snapshot_plugin(RESULTS / group_name(a.mode, a.scenario) / a.label / "plugin", a.plugin_ref)
+    plugin = RESULTS / group_name(a.mode, a.scenario) / a.label / "plugin"
+    fresh = not plugin.exists()
+    snapshot_plugin(plugin, a.plugin_ref)
+    if a.inject_fault and fresh:
+        inject_fault(plugin, a.inject_fault)
     with ThreadPoolExecutor(a.runs) as ex:
         list(ex.map(lambda i: one(a.mode, a.label, i, a.model, a.max_ticks,
                                   a.scenario, a.legacy_plan, a.plugin_ref),

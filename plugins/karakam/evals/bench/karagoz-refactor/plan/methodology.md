@@ -26,7 +26,8 @@ kullanır.
 - `Urun` alanları: `sku`, `ad`, `kategori`, `adet`, `birim_fiyat`; `kategori`
   boş olamaz.
 - Metin karşılaştırmaları Türkçe büyük/küçük harf kurallarına uyar: `I` ↔ `ı`,
-  `İ` ↔ `i`; diğer harfler olağan eşleşmeleriyle.
+  `İ` ↔ `i`; diğer harfler olağan eşleşmeleriyle. Aksan duyarlıdır (`c` ≠ `ç`).
+  Aynı görünen metin, Unicode biçimi (NFC/NFD) ne olursa olsun aynı sonucu verir.
 - CLI hataları stderr'e `hata: ...` olarak yazılır, çıkış kodu 2; stdout boş kalır.
 
 ## Definition of Done + test strategy

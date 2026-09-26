@@ -2,11 +2,13 @@
 
 Never visible to the agents; the runner drops them in after the run. They
 check the finished product end to end — including the two places the plan is
-deliberately flawed (step 01 labelled `low` effort although Turkish casing is a
-trap for str.lower(); step 02's files_touched omitting tests/test_rapor.py).
+deliberately flawed (step 01 labelled `low` effort although Turkish casing,
+Unicode normalization and accent sensitivity interact in ways a quick pass
+gets wrong; step 02's files_touched omitting tests/test_rapor.py).
 """
 import subprocess
 import sys
+import unicodedata
 from decimal import Decimal
 
 import pytest
@@ -31,8 +33,21 @@ def cli(tmp_path, *args, body=None):
                           capture_output=True, text=True)
 
 
+NFD = lambda s: unicodedata.normalize("NFD", s)  # noqa: E731
+
+
 @pytest.mark.parametrize("metin,sorgu,beklenen", [
     ("ISPARTA", "ısparta", True),
+    # decomposed (NFD) input, as exported from macOS: İ = I + U+0307
+    (NFD("İzmir"), "izmir", True),
+    (NFD("İZMİR"), "ızmır", False),
+    ("İzmir", NFD("İZMİR"), True),
+    (NFD("Çanta"), "çanta", True),
+    (NFD("IĞDIR"), "ığdır", True),
+    # accent-sensitive: c/ç, s/ş, g/ğ, o/ö, u/ü are different letters
+    ("Çanta", "canta", False),
+    (NFD("Şeker"), "seker", False),
+    ("Gözlük", "gozluk", False),
     ("ISPARTA", "isparta", False),
     ("İzmir", "izmir", True),
     ("izmir", "İZMİR", True),
@@ -49,6 +64,8 @@ def test_eslesir(metin, sorgu, beklenen):
 def test_tr_kucuk():
     assert tr_kucuk("İSTANBUL") == "istanbul"
     assert tr_kucuk("ILIK") == "ılık"
+    assert tr_kucuk(NFD("İSTANBUL")) == "istanbul"
+    assert tr_kucuk(NFD("ŞEKER")) == unicodedata.normalize("NFC", "şeker")
 
 
 def test_kategori_required():
@@ -87,6 +104,7 @@ def test_rapor_still_works_on_v2(tmp_path):
     ("ığdır", ["IGD-0004 | IĞDIR Kayısısı | Gıda | 7"]),
     ("i", ["IZM-0002 | İzmir Lokumu | Gıda | 20"]),
     ("klm", ["KLM-0003 | Kalem Kutusu | Kırtasiye | 100"]),
+    (unicodedata.normalize("NFD", "İzmir"), ["IZM-0002 | İzmir Lokumu | Gıda | 20"]),
 ])
 def test_ara(tmp_path, sorgu, beklenen):
     r = cli(tmp_path, "ara", sorgu, body=V2 + ROWS)
