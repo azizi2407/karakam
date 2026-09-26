@@ -33,7 +33,12 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 PLUGIN = HERE.parents[1]  # plugins/karakam
+REPO = HERE.parents[3]
 RESULTS = HERE / "results"
+# karagoz scenarios: <dir>/plan (+ optional <dir>/base, the codebase the plan
+# starts from) and <dir>/hidden/test_hidden.py
+SCENARIOS = {"stokcu": HERE / "karagoz", "refactor": HERE / "karagoz-refactor"}
+LEGACY_MODEL = {"low": "haiku", "medium": "sonnet", "high": "opus"}
 
 KARAGOZ_PROMPT = (
     "karagoz: ./plan/ içindeki planı uygula. "
@@ -50,11 +55,35 @@ def sh(cmd, cwd, **kw):
                           capture_output=True, text=True, **kw)
 
 
-def snapshot_plugin(dest):
+def snapshot_plugin(dest, ref=None):
+    """Freeze the plugin under test: the working tree, or a git ref (e.g. v1.1)."""
     if dest.exists():
         return dest
-    shutil.copytree(PLUGIN, dest, ignore=shutil.ignore_patterns("evals"))
+    if ref is None:
+        shutil.copytree(PLUGIN, dest, ignore=shutil.ignore_patterns("evals"))
+        return dest
+    tmp = dest.parent / "_archive"
+    tmp.mkdir(parents=True, exist_ok=True)
+    arch = subprocess.run(["git", "-C", str(REPO), "archive", "--format=tar", ref,
+                           "plugins/karakam"], capture_output=True, check=True).stdout
+    subprocess.run(["tar", "-x", "-C", str(tmp)], input=arch, check=True)
+    shutil.copytree(tmp / "plugins" / "karakam", dest, ignore=shutil.ignore_patterns("evals"))
+    shutil.rmtree(tmp)
     return dest
+
+
+def to_legacy_plan(plan):
+    """Rewrite an effort-column plan into the pre-1.2 model-column contract."""
+    prog = plan / "progress.md"
+    s = prog.read_text(encoding="utf-8").replace("| effort |", "| model |")
+    s = re.sub(r"^(\|[^|]*\|[^|]*\|[^|]*\|)\s*(low|medium|high)\s*\|",
+               lambda m: f"{m.group(1)} {LEGACY_MODEL[m.group(2)]} |", s, flags=re.M)
+    prog.write_text(s, encoding="utf-8")
+    for step in (plan / "steps").glob("*.md"):
+        t = re.sub(r"## Effort\neffort: (low|medium|high)",
+                   lambda m: f"## Model\nmodel: {LEGACY_MODEL[m.group(1)]}",
+                   step.read_text(encoding="utf-8"))
+        step.write_text(t, encoding="utf-8")
 
 
 def claude(prompt, cwd, plugin, model, session=None, budget=15.0, timeout=3600):
@@ -82,6 +111,14 @@ def ledger(proj):
     return dict(ROW.findall(f.read_text(encoding="utf-8"))) if f.exists() else {}
 
 
+def ledger_notes(proj):
+    f = proj / "plan" / "progress.md"
+    if not f.exists():
+        return {}
+    return {m.group(1): m.group(2).strip() for m in re.finditer(
+        r"^\|\s*(\d+)\s*\|(?:[^|]*\|){5}([^|]*)\|", f.read_text(encoding="utf-8"), re.M)}
+
+
 def pytest_counts(proj, target):
     p = sh([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", target],
            cwd=proj, timeout=600)
@@ -91,14 +128,19 @@ def pytest_counts(proj, target):
     return {"passed": passed, "failed": failed, "tail": tail}
 
 
-def run_karagoz(run_dir, plugin, model, max_ticks):
+def run_karagoz(run_dir, plugin, model, max_ticks, scen, legacy):
     proj = run_dir / "proj"
-    shutil.copytree(HERE / "karagoz" / "plan", proj / "plan")
+    if (scen / "base").exists():
+        shutil.copytree(scen / "base", proj, ignore=shutil.ignore_patterns("__pycache__"))
+    shutil.copytree(scen / "plan", proj / "plan")
+    if legacy:
+        to_legacy_plan(proj / "plan")
     (proj / "plan" / "logs").mkdir(exist_ok=True)
     (proj / "plan" / "reports").mkdir(exist_ok=True)
     for c in ("git init -q .", "git config user.email bench@example.com",
               "git config user.name bench", "git add -A", "git commit -qm plan"):
         sh(c, cwd=proj)
+    start = sh("git rev-parse HEAD", cwd=proj).stdout.strip()
     ticks, session = [], None
     for n in range(1, max_ticks + 1):
         d = claude(KARAGOZ_PROMPT, proj, plugin, model, session)
@@ -113,10 +155,14 @@ def run_karagoz(run_dir, plugin, model, max_ticks):
             break
     hidden = proj / "_hidden"
     hidden.mkdir(exist_ok=True)
-    shutil.copy(HERE / "karagoz" / "hidden" / "test_hidden.py", hidden)
+    shutil.copy(scen / "hidden" / "test_hidden.py", hidden)
     return {
         "ticks": ticks,
         "ledger": ledger(proj),
+        "notes": ledger_notes(proj),
+        # step files the Coordinator edited (Karagöz's single-step spec fix, 4b)
+        "spec_edits": sorted(Path(f).stem for f in sh(
+            ["git", "diff", "--name-only", start, "--", "plan/steps"], cwd=proj).stdout.split()),
         "own_tests": pytest_counts(proj, "tests"),
         "hidden_tests": pytest_counts(proj, "_hidden"),
         "commits": int(sh("git rev-list --count HEAD", cwd=proj).stdout.strip() or 0),
@@ -217,23 +263,75 @@ def agent_costs(proj, subagent_role=None):
     return out
 
 
-def one(mode, label, i, model, max_ticks):
-    run_dir = RESULTS / mode / label / f"run-{i}"
+def agent_list(proj):
+    """Every sub-agent call in spawn order: type, step, model, effort, cost."""
+    tdir = Path.home() / ".claude" / "projects" / re.sub(r"[^A-Za-z0-9]", "-", str(proj))
+    out = []
+    for meta in tdir.rglob("subagents/*.meta.json"):
+        m = json.loads(meta.read_text())
+        cost, turns, first, effort, model = 0.0, 0, None, None, m.get("model")
+        msgs = {}
+        for line in meta.with_suffix("").with_suffix(".jsonl").read_text().splitlines():
+            d = json.loads(line)
+            first = first or d.get("timestamp")
+            g = d.get("message") or {}
+            if d.get("type") == "assistant" and g.get("usage"):
+                msgs[g["id"]] = g
+                effort = d.get("effort") or effort
+        for g in msgs.values():
+            u, p = g["usage"], price(g.get("model", ""))
+            model = g.get("model") or model
+            if p:
+                cw = u.get("cache_creation") or {}
+                w5 = cw.get("ephemeral_5m_input_tokens", 0)
+                w1 = cw.get("ephemeral_1h_input_tokens", u.get("cache_creation_input_tokens", 0) - w5)
+                cost += (u.get("input_tokens", 0) * p[0] + u.get("output_tokens", 0) * p[1]
+                         + u.get("cache_read_input_tokens", 0) * p[2] + w5 * p[3] + w1 * p[4]) / 1e6
+        desc = m.get("description", "")
+        step = re.search(r"(?<!\d)(\d{1,2})(?!\d)", desc)
+        out.append({"t": first, "type": m.get("agentType"), "role": role_of(desc, m.get("agentType", "")),
+                    "desc": desc, "step": step.group(1).zfill(2) if step else None,
+                    "model": (model or "").replace("claude-", ""), "effort": effort,
+                    "turns": len(msgs), "cost": round(cost, 4)})
+    return sorted(out, key=lambda a: a["t"] or "")
+
+
+def one(mode, label, i, model, max_ticks, scenario="stokcu", legacy=False, ref=None):
+    group = group_name(mode, scenario)
+    run_dir = RESULTS / group / label / f"run-{i}"
     if run_dir.exists():
         shutil.rmtree(run_dir)
     run_dir.mkdir(parents=True)
-    plugin = snapshot_plugin(RESULTS / mode / label / "plugin")
+    plugin = snapshot_plugin(RESULTS / group / label / "plugin", ref)
     t0 = time.time()
-    res = run_karagoz(run_dir, plugin, model, max_ticks) if mode == "karagoz" \
-        else run_hacivat(run_dir, plugin, model)
+    res = run_karagoz(run_dir, plugin, model, max_ticks, SCENARIOS[scenario], legacy) \
+        if mode == "karagoz" else run_hacivat(run_dir, plugin, model)
     res["wall_total_s"] = round(time.time() - t0, 1)
     res["by_model"] = model_costs(run_dir)
     res["by_role"] = agent_costs(run_dir / "proj", "critic" if mode == "hacivat" else None)
+    res["agents"] = agent_list(run_dir / "proj")
     res["total_cost"] = round(sum(v["cost"] for v in res["by_model"].values()), 4)
     (run_dir / "summary.json").write_text(json.dumps(res, indent=1, ensure_ascii=False))
-    print(f"[{mode}/{label}/run-{i}] ${res['total_cost']} "
+    print(f"[{group}/{label}/run-{i}] ${res['total_cost']} "
           f"{res.get('hidden_tests', {}).get('tail', '')}", flush=True)
     return res
+
+
+def group_name(mode, scenario):
+    return mode if mode == "hacivat" or scenario == "stokcu" else f"{mode}-{scenario}"
+
+
+def refactor_line(r):
+    """Per step: the Workers it took (effort or model), and what the ledger says."""
+    steps = {}
+    for a in r.get("agents", []):
+        if a["role"] == "worker" and a["step"]:
+            tag = a["type"].split(":")[-1] if a["type"].startswith("karakam:") else a["model"]
+            steps.setdefault(a["step"], []).append(tag.replace("worker-", ""))
+    parts = [f"{s}: {'→'.join(w)}" for s, w in sorted(steps.items())]
+    extra = sum(len(w) - 1 for w in steps.values())
+    return (f"  workers per step: {'; '.join(parts)}  (refactor rounds: {extra})\n"
+            f"  spec edits: {r.get('spec_edits') or '-'}  notes: {r.get('notes')}")
 
 
 def report():
@@ -247,7 +345,7 @@ def report():
                 models = ", ".join(f"{m.replace('claude-', '')}=${v['cost']:.2f}"
                                    for m, v in sorted(r["by_model"].items()))
                 extra = ""
-                if mode_dir.name == "karagoz":
+                if mode_dir.name.startswith("karagoz"):
                     extra = (f" ticks={len(r['ticks'])} ledger={r['ledger']} "
                              f"hidden={r['hidden_tests']['passed']}/"
                              f"{r['hidden_tests']['passed'] + r['hidden_tests']['failed']}"
@@ -258,6 +356,8 @@ def report():
                                   for k, v in sorted(r.get("by_role", {}).items()))
                 print(f"- run {i}: ${r['total_cost']:.2f}, {r['wall_total_s']:.0f}s,{extra}\n"
                       f"  by model: {models}\n  by role ($/calls, main=$/turns): {roles}")
+                if mode_dir.name.startswith("karagoz") and r.get("agents"):
+                    print(refactor_line(r))
             print(f"- mean: ${sum(r['total_cost'] for r in runs) / len(runs):.2f}")
 
 
@@ -269,6 +369,11 @@ def main():
     ap.add_argument("--model", default="claude-opus-5-5",
                     help="main-session model (Coordinator / Hacivat)")
     ap.add_argument("--max-ticks", type=int, default=6)
+    ap.add_argument("--scenario", choices=sorted(SCENARIOS), default="stokcu",
+                    help="karagoz only: which fixed plan to execute")
+    ap.add_argument("--plugin-ref", help="git ref to benchmark instead of the working tree")
+    ap.add_argument("--legacy-plan", action="store_true",
+                    help="karagoz only: convert the plan to the pre-1.2 model-column contract")
     a = ap.parse_args()
     if a.mode == "report":
         return report()
@@ -277,11 +382,13 @@ def main():
             r = json.loads(sfile.read_text())
             r["by_role"] = agent_costs(sfile.parent / "proj",
                                        "critic" if "/hacivat/" in str(sfile) else None)
+            r["agents"] = agent_list(sfile.parent / "proj")
             sfile.write_text(json.dumps(r, indent=1, ensure_ascii=False))
         return report()
-    snapshot_plugin(RESULTS / a.mode / a.label / "plugin")
+    snapshot_plugin(RESULTS / group_name(a.mode, a.scenario) / a.label / "plugin", a.plugin_ref)
     with ThreadPoolExecutor(a.runs) as ex:
-        list(ex.map(lambda i: one(a.mode, a.label, i, a.model, a.max_ticks),
+        list(ex.map(lambda i: one(a.mode, a.label, i, a.model, a.max_ticks,
+                                  a.scenario, a.legacy_plan, a.plugin_ref),
                     range(1, a.runs + 1)))
     report()
 
