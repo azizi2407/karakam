@@ -146,7 +146,7 @@ Status values: `pending` · `in_progress` · `done` · `refactoring` · `blocked
 
 **Why `effort` and `critical` live here:** Karagöz must know the effort when spawning a Worker and the criticality flag when setting up the Observer. If that information existed only inside `steps/NN.md`, the Coordinator would have to open the step file every tick — and the "read only progress.md" rule, i.e. the entire context economy, would collapse on the first tick. These values must agree with `steps/NN.md` (`yes` = `true`); Hacivat writes both.
 
-**Plans written before `effort` existed** have a `model` column (`opus | sonnet | haiku`) instead. Karagöz reads it as `high | medium | low` respectively; Workers run on Opus either way.
+**Plans written before `effort` existed** have a `model` column (`opus | sonnet | haiku`) instead. Karagöz reads it as `high | medium | low` respectively; the column never picks the Worker's model.
 
 **At scale, archive what's settled.** If the plan is large enough (30+ steps) that `progress.md` itself becomes costly to read every tick, Karagöz may move rows for steps that are `done` **and** whose dependents are all `done` too (so nothing will ever query them again) into `progress-archive.md`, leaving a one-line stub in the live table. Skip this on a normal-sized plan — it's ceremony the ledger doesn't need until it's genuinely bloated.
 

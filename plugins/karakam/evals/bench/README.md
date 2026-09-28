@@ -75,3 +75,17 @@ The default scenario's plan is deliberately well specified — no version measur
 - **Both got every rule right.** No run of either failed a hidden test; the Observers (Opus in both arms) sent back one step in two runs — the same step 06 edge case (`--ay 0000-01` crashed instead of reporting an invalid month) with each model. Sonnet Workers wrote fewer tests of their own (100–113 against 135–152 in the final suite).
 - **The Opus arm's $5.32 run lost a step to a git failure, not to the model.** Step 02 passed both critical Observers, but its worktree commit hit a signing timeout; the Coordinator had chained commit, merge and `worktree remove --force` without checking each result, so the passed work was deleted and the step re-run. That's what `stepgit.sh land` now prevents. Without it the arms are $3.32–3.45 (Opus) against $2.63–2.67 (Sonnet) for clean runs.
 - **What this doesn't show:** a task hard enough that the Worker model changes the outcome. Both scenarios are well-specified plans with a strong Observer; on them Sonnet 5.5 Workers cost 20–30% less per run at the same result.
+
+### 1.4: Sonnet 5.5 Workers at `high`, refactor rounds on Opus (`--step-effort high`, 2 runs each)
+
+| scenario | cost | hidden tests | refactor rounds |
+|---|---|---|---|
+| `stokcu` (clean) | $1.09 · $1.13 | 18/18 ×2 | 0 |
+| `refactor`, hardened | $1.37 · $1.40 | 30/30 ×2 | 1 (spec fault, `high→high`) |
+| `refactor`, hardened, `--inject-fault worker-high` | $1.41 · $1.67 | 30/30 ×2 | 1 · 2 (`high→opus-high`) |
+| `fifo` | $2.89 · $3.28 | 57/57 ×2 | 0 |
+| `hacivat` | $2.62 (1 run) | — | — |
+
+- **Sonnet at `high` costs less than Opus at `low`/`medium`.** Worker spend was $0.18–0.26 on the three-step plans and $0.63–0.74 on `fifo`, against $0.33–0.56 and $1.12–1.69 for Opus Workers in 1.3; no extra rounds.
+- **The ladder reaches Opus.** With the sloppy first pass, one run's Observer passed the sloppy step anyway (its code was right; the report called its tests thin), the other sent it to `worker-opus-high`, which passed. The spec-fault round stayed on the step's own Worker.
+- **Hacivat applies the rubric.** 4 of 5 steps at `high`, one at `medium`.

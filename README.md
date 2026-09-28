@@ -62,10 +62,10 @@ Four roles:
 | **Creator (Hacivat)** | Clarify → plan → critic panel → hill-climb → handoff files. Talks to you. | Your session (Opus) |
 | **Critic** | Reviews the plan through one of four lenses. | `karakam:critic` — Opus, medium effort |
 | **Coordinator (Karagöz)** | One tick = the currently runnable step(s) to `done`. Picks them, sends the Workers, calls the Observers, updates the ledger. Writes no code. | Your session (Opus, medium effort) |
-| **Worker** | Executes one step, test-first. Writes a short log. | `karakam:worker-<effort>` — Opus, at the effort Hacivat set for the step |
+| **Worker** | Executes one step, test-first. Writes a short log. | `karakam:worker-<effort>` — Sonnet 5.5, at the effort Hacivat set for the step (`high` by default); refactor rounds: `worker-opus-high`, then `worker-opus-xhigh` |
 | **Observer** | Audits the step adversarially — runs the checks itself, tries to refute it. | `karakam:observer-medium`; two `observer-high` on critical steps |
 
-Every sub-agent is a plugin agent (`plugins/karakam/agents/`), so its protocol, tools, model and effort live in its definition rather than being re-typed by the Coordinator on every call. Code-writing and auditing run on Opus, and the cost lever is **effort**: Hacivat starts well-specified steps at `low` and lets the Observer catch the misses. When a step fails its audit, the next round goes straight to `high`, and to `xhigh` only after that (`low → high → xhigh`) — the second attempt at `high` is where a retry pays off. Fable is never used unless you ask for it.
+Every sub-agent is a plugin agent (`plugins/karakam/agents/`), so its protocol, tools, model and effort live in its definition rather than being re-typed by the Coordinator on every call. Workers write code on Sonnet 5.5, at `high` effort unless a step is mechanical; the Observers that audit them, the critics and the Coordinator run on Opus. When a step fails its audit, the retry goes to a stronger model, not just more thinking: an Opus Worker at `high`, then at `xhigh`. Fable is never used unless you ask for it.
 
 The handoff between the halves is four files:
 
@@ -117,22 +117,25 @@ When a step can't pass after its refactor rounds, the loop doesn't stall waiting
 
 Measured, not guessed. [`plugins/karakam/evals/bench`](plugins/karakam/evals/bench) runs both halves headless on fixed tasks, splits the bill by role, and grades the product with hidden acceptance tests the agents never see. Prices are Opus 5.5 API list prices; on a subscription, read them as how much of your usage a run takes.
 
-| Benchmark | 1.1 (Sonnet/Haiku sub-agents) | 1.2 (all Opus, effort-tuned) | 1.3 (steps start at `low`) |
-|---|---|---|---|
-| **Karagöz, clean run** — 3-step plan, 2 parallel + 1 critical | $1.83 · hidden tests 18/18 | $1.46 · 18/18 | **$1.24** · 18/18 |
-| **Karagöz, hard run** — existing codebase, a planted spec fault (1 refactor round) | $2.23 · 21/21 · ~10.5 min | $1.66 · 21/21 · ~4.3 min | **$1.47** · 30/30 · ~3.7 min |
-| **Karagöz, hard run + sloppy first Worker** (fault injection, 2 refactor rounds) | — | $1.97 · 30/30 | **$1.85** · 30/30 |
-| **Hacivat** — planning a 6-step plan, critic panel included | $3.35 | $3.08 | **$2.71** |
+| Benchmark | 1.1 (Sonnet/Haiku sub-agents) | 1.2 (all Opus, effort-tuned) | 1.3 (steps start at `low`) | 1.4 (Sonnet 5.5 Workers at `high`) |
+|---|---|---|---|---|
+| **Karagöz, clean run** — 3-step plan, 2 parallel + 1 critical | $1.83 · hidden tests 18/18 | $1.46 · 18/18 | $1.24 · 18/18 | **$1.11** · 18/18 |
+| **Karagöz, hard run** — existing codebase, a planted spec fault (1 refactor round) | $2.23 · 21/21 · ~10.5 min | $1.66 · 21/21 · ~4.3 min | $1.47 · 30/30 · ~3.7 min | **$1.39** · 30/30 · ~3.7 min |
+| **Karagöz, hard run + sloppy first Worker** (fault injection, 2 refactor rounds) | — | $1.97 · 30/30 | $1.85 · 30/30 | **$1.54** · 30/30 |
+| **Karagöz, large run** — 6 steps of FIFO stock costing, 2 critical | — | — | $3.32–5.32 · 57/57 | **$2.89–3.28** · 57/57 |
+| **Hacivat** — planning a 6-step plan, critic panel included | $3.35 | $3.08 | $2.71 | **$2.62** |
 
 **Why 1.2 is cheaper despite running everything on Opus:** Opus 5.5 at medium effort finishes in fewer turns; the Coordinator — 30–40% of the execution bill — got thinner (plugin agents instead of prompt templates re-typed on every call, rare paths loaded on demand); and the critic panel's later rounds verify earlier objections instead of reviewing the whole plan afresh. Without that last change, Opus critics raised a new crop of major objections every round and planning cost $5.18.
 
 **Why 1.3 is cheaper again:** every step runs one effort level lower than in 1.2 — well-specified work at `low`, even on the critical step — and the hidden tests came out the same, with no extra refactor rounds; Worker spend fell by about a third. The handoff also pins the Coordinator at `medium`, the effort all of these numbers were measured at.
 
+**Why 1.4 is cheaper still:** Workers run on Sonnet 5.5, whose tokens cost half of Opus's — at `high` effort they spent less than Opus Workers at `low`/`medium`, and got every hidden test right in all 6 runs across the three plans without an extra refactor round. The bill is now mostly the Opus side: Observers and the Coordinator.
+
 **How it recovers when a step fails:**
 - **A fault in the plan gets fixed, not retried.** In every hard run of both versions, the step whose `files_touched` was too narrow failed its first audit; the Coordinator recognised a single-step spec fault, widened the list, and the step passed on the next round — at the same effort, since more thinking can't fix a wrong spec.
-- **A weak Worker gets a stronger one.** With the first Worker replaced by a deliberately sloppy pass, the Observer rejected it every time and the next Worker passed. 1.2 sent it one level up (`low → medium`) for about $0.30 more; 1.3 goes straight to `high` (`low → high`) and the recovery cost about $0.20.
+- **A weak Worker gets a stronger one.** With the first Worker replaced by a deliberately sloppy pass, the Observer rejected it every time and the next Worker passed. 1.2 sent it one level up (`low → medium`) for about $0.30 more; 1.3 goes straight to `high` (`low → high`) and the recovery cost about $0.20. In 1.4 the retry goes to Opus (`high → opus-high`).
 - **Opus at low effort rarely needs that.** A step labelled `low` whose rules interact (Turkish casing, Unicode normalization, accent sensitivity — each wrong shortcut fails the hidden tests) was solved on the first pass in 6 of 6 runs.
-- **Sonnet 5.5 Workers passed too, for less.** With every Worker switched to Sonnet 5.5 (Observers still on Opus), the hard run passed 30/30 in both runs at $1.28 against $1.66 for Opus Workers. On a larger plan — six steps of FIFO stock costing, each rule with a tempting shortcut that 57 hidden tests catch — Sonnet Workers passed 57/57 in 3 of 3 runs at $2.63–3.40, against $3.32–5.32 for Opus Workers (also 57/57), with no more refactor rounds; Worker spend was $0.40–0.52 against $1.12–1.69. Workers stay on Opus by default for now; the bench's `--worker-model` option reruns the comparison.
+- **Sonnet 5.5 Workers passed too, for less.** With every Worker switched to Sonnet 5.5 (Observers still on Opus), the hard run passed 30/30 in both runs at $1.28 against $1.66 for Opus Workers. On a larger plan — six steps of FIFO stock costing, each rule with a tempting shortcut that 57 hidden tests catch — Sonnet Workers passed 57/57 in 3 of 3 runs at $2.63–3.40, against $3.32–5.32 for Opus Workers (also 57/57), with no more refactor rounds; Worker spend was $0.40–0.52 against $1.12–1.69. 1.4 makes Sonnet 5.5 the default Worker; the bench's `--worker-model opus` option reruns the comparison.
 - **A failed checkpoint no longer loses work.** In one large run a step passed its audit, but committing it hit a signing timeout, and the Coordinator's hand-chained commit–merge–cleanup went on to delete the worktree. 1.3 lands parallel steps with `stepgit.sh land`, which retries a failed commit or merge once and removes the worktree only after the merge succeeded.
 
 **What to expect per step:** a small, well-specified step runs about **$0.3–0.5** end to end, a larger one up to ~$1, a critical step (two Observers at high effort) about twice that, and every refactor round adds another Worker and Observer run. Hacivat turns that into a range for your plan before you start.
@@ -141,7 +144,7 @@ These are small, fixed tasks — they show relative cost and whether recovery wo
 
 ## Requirements
 
-- Claude Code with sub-agent (Agent tool) access and Opus. Fable is used only if you ask for it.
+- Claude Code with sub-agent (Agent tool) access, Opus and Sonnet. Fable is used only if you ask for it.
 - For long autonomous runs on a server, run inside `tmux`/`screen` — `/loop` lives in the session, and it dies with your SSH connection.
 
 ## Language

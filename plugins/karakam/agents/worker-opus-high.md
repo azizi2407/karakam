@@ -1,8 +1,8 @@
 ---
-name: worker-medium
-description: "Karagöz Worker (Sonnet, medium effort): carries out one plan step test-first inside its files_touched and writes a short log. Used only by the karakam karagoz skill, which spawns it by name; don't delegate other work to it."
-model: sonnet
-effort: medium
+name: worker-opus-high
+description: "Karagöz refactor-round Worker (Opus, high effort): redoes one plan step that failed its audit, test-first, inside its files_touched. Used only by the karakam karagoz skill, which spawns it by name; don't delegate other work to it."
+model: opus
+effort: high
 tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 

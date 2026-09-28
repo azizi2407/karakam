@@ -69,7 +69,7 @@ Build the `progress.md` skeleton (every step `pending`) and check that `effort` 
 
 Give the user a short summary — step count, key decisions, risks, known limits — plus two numbers they need before committing:
 
-- **Execution cost estimate.** Measured on Opus 5.5 at API list prices, a small, well-specified step costs about $0.3–0.5 end to end (Worker, Observer and the Coordinator's share); budget up to ~$1 for a larger one, about twice that for a critical step (two Observers at high effort), and one more Worker-plus-Observer run for every refactor round. Give a range for the whole plan — e.g. "12 steps, 3 critical: roughly $6–15". The point is letting the user tell a light afternoon loop from an expensive multi-hour run; on a subscription it's a measure of how much of their usage the run will take, not a bill.
+- **Execution cost estimate.** Measured at API list prices (Sonnet 5.5 Workers, Opus 5.5 Observers and Coordinator), a small, well-specified step costs about $0.3–0.5 end to end (Worker, Observer and the Coordinator's share); budget up to ~$1 for a larger one, about twice that for a critical step (two Observers at high effort), and one more Worker-plus-Observer run for every refactor round. Give a range for the whole plan — e.g. "12 steps, 3 critical: roughly $6–15". The point is letting the user tell a light afternoon loop from an expensive multi-hour run; on a subscription it's a measure of how much of their usage the run will take, not a bill.
 - **An `/autocompact` window for the execution session.** Claude Code's default for Opus 5.5 is 1M tokens, so a long loop would carry an ever-growing conversation into every turn. Karagöz keeps all its state on disk, so compaction loses it nothing — but the window has to leave room for several ticks between compactions, so one never lands mid-batch:
   - up to 2 steps in parallel → `/autocompact 150k`
   - 3–4 steps in parallel, or 30+ steps → `/autocompact 200k`
@@ -95,7 +95,7 @@ Step 0 matters in a git project (skip it otherwise): Karagöz commits each finis
 
 Choose the interval with the user, and tell them why it matters: every tick resends the whole loop conversation, which is cheap only while the prompt cache is warm. On a Claude subscription the cache lives an hour, so `20m` is fine and spreads the work across their usage window. On an API key or a cloud provider (or a subscription drawing on usage credits) it lives five minutes — there, drop the interval (`/loop karagoz: …`), and each tick follows the previous one straight away.
 
-If the user asked for Fable, add that to the loop prompt ("… use Fable for the Workers") so it reaches Karagöz on every tick; otherwise Karagöz runs everything on Opus.
+If the user asked for Fable, add that to the loop prompt ("… use Fable for the Workers") so it reaches Karagöz on every tick; otherwise Workers run on Sonnet 5.5 (Opus on refactor rounds) and everything else on Opus.
 
 ## Writing steps that execute well
 
@@ -110,13 +110,13 @@ Karagöz spins for hours only if every tick stays small, and you set that up now
 
 ## Effort and criticality
 
-Every Worker runs on Opus; you set how hard it thinks. Effort decides how much reasoning and how many tool calls the Worker spends per turn — a cheaper lever than a bigger model, and Karagöz raises it on its own when a step has to be redone.
+Workers run on Sonnet 5.5; you set how hard each one thinks. Effort decides how much reasoning and how many tool calls the Worker spends per turn. A step that fails its audit is redone by an Opus Worker — Karagöz does that on its own.
 
-- **low** — the default for a well-specified step: a module, an endpoint, a schema, a known pattern, whose contract is clear and whose acceptance criteria pin the behavior down. The Observer is the safety net: a `low` step that fails its audit is redone at `high`.
-- **medium** — the contract leaves room for interpretation, or the step makes a design decision the methodology doesn't settle.
-- **high** — work that spans layers and needs real design judgment: cross-cutting changes, tricky algorithms, integrations where the obvious fix tends to stop one layer short.
+- **high** — the default: a module, an endpoint, a schema, cross-layer work, anything with rules that interact or a design decision to make.
+- **medium** — a small change whose shape is obvious and fully specified: a new field threaded through a known path, a thin wrapper over an existing function.
+- **low** — mechanical work: a rename across files, a config or version change, a known pattern applied verbatim.
 
-Start low and let the ladder catch the misses: that's the cheapest policy measured. Assigning every step one level below the older rubric (medium by default) cost 11–15% less on both benchmark plans, with the same hidden-test results and no extra refactor rounds — even a critical step at `low` passed both of its Observers.
+When in doubt, `high`. Sonnet's tokens cost half of Opus's, so thoroughness on the first pass is cheaper than a refactor round.
 
 Don't move Workers to another model on your own; use Fable only if the user asks for it (see the handoff above).
 
