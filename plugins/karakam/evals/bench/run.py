@@ -39,6 +39,9 @@ RESULTS = HERE / "results"
 # starts from) and <dir>/hidden/test_hidden.py
 SCENARIOS = {"stokcu": HERE / "karagoz", "refactor": HERE / "karagoz-refactor"}
 LEGACY_MODEL = {"low": "haiku", "medium": "sonnet", "high": "opus"}
+SHIFT_DOWN = {"low": "low", "medium": "low", "high": "medium"}
+# set from the command line: main-session effort, as the handoff pins it
+MAIN_EFFORT = "medium"
 
 KARAGOZ_PROMPT = (
     "karagoz: ./plan/ içindeki planı uygula. "
@@ -89,6 +92,25 @@ def inject_fault(plugin, agent):
     f.write_text(f"---{head[1]}---\n\n{SLOPPY}", encoding="utf-8")
 
 
+def use_worker_model(plugin, model):
+    """Run every Worker on another model (Observers and critics stay on Opus)."""
+    for f in (plugin / "agents").glob("worker-*.md"):
+        f.write_text(f.read_text(encoding="utf-8").replace("\nmodel: opus\n", f"\nmodel: {model}\n", 1),
+                     encoding="utf-8")
+
+
+def shift_efforts_down(plan):
+    """A/B: every step one effort level lower (high→medium, medium→low)."""
+    prog = plan / "progress.md"
+    prog.write_text(re.sub(r"^(\|[^|]*\|[^|]*\|[^|]*\|)\s*(low|medium|high)\s*\|",
+                           lambda m: f"{m.group(1)} {SHIFT_DOWN[m.group(2)]} |",
+                           prog.read_text(encoding="utf-8"), flags=re.M), encoding="utf-8")
+    for step in (plan / "steps").glob("*.md"):
+        step.write_text(re.sub(r"(## Effort\neffort: )(low|medium|high)",
+                               lambda m: m.group(1) + SHIFT_DOWN[m.group(2)],
+                               step.read_text(encoding="utf-8")), encoding="utf-8")
+
+
 def to_legacy_plan(plan):
     """Rewrite an effort-column plan into the pre-1.2 model-column contract."""
     prog = plan / "progress.md"
@@ -107,7 +129,7 @@ def claude(prompt, cwd, plugin, model, session=None, budget=15.0, timeout=3600):
     cmd = ["claude", "-p", prompt, "--plugin-dir", str(plugin),
            "--model", model, "--output-format", "json",
            "--permission-mode", "acceptEdits", "--allowed-tools", *TOOLS.split(),
-           "--max-budget-usd", str(budget)]
+           "--effort", MAIN_EFFORT, "--max-budget-usd", str(budget)]
     if session:
         cmd += ["--resume", session]
     t0 = time.time()
@@ -145,13 +167,15 @@ def pytest_counts(proj, target):
     return {"passed": passed, "failed": failed, "tail": tail}
 
 
-def run_karagoz(run_dir, plugin, model, max_ticks, scen, legacy):
+def run_karagoz(run_dir, plugin, model, max_ticks, scen, legacy, shift=False):
     proj = run_dir / "proj"
     if (scen / "base").exists():
         shutil.copytree(scen / "base", proj, ignore=shutil.ignore_patterns("__pycache__"))
     shutil.copytree(scen / "plan", proj / "plan")
     if legacy:
         to_legacy_plan(proj / "plan")
+    if shift:
+        shift_efforts_down(proj / "plan")
     (proj / "plan" / "logs").mkdir(exist_ok=True)
     (proj / "plan" / "reports").mkdir(exist_ok=True)
     for c in ("git init -q .", "git config user.email bench@example.com",
@@ -315,7 +339,7 @@ def agent_list(proj):
     return sorted(out, key=lambda a: a["t"] or "")
 
 
-def one(mode, label, i, model, max_ticks, scenario="stokcu", legacy=False, ref=None):
+def one(mode, label, i, model, max_ticks, scenario="stokcu", legacy=False, ref=None, shift=False):
     group = group_name(mode, scenario)
     run_dir = RESULTS / group / label / f"run-{i}"
     if run_dir.exists():
@@ -323,7 +347,7 @@ def one(mode, label, i, model, max_ticks, scenario="stokcu", legacy=False, ref=N
     run_dir.mkdir(parents=True)
     plugin = snapshot_plugin(RESULTS / group / label / "plugin", ref)
     t0 = time.time()
-    res = run_karagoz(run_dir, plugin, model, max_ticks, SCENARIOS[scenario], legacy) \
+    res = run_karagoz(run_dir, plugin, model, max_ticks, SCENARIOS[scenario], legacy, shift) \
         if mode == "karagoz" else run_hacivat(run_dir, plugin, model)
     res["wall_total_s"] = round(time.time() - t0, 1)
     res["by_model"] = model_costs(run_dir)
@@ -394,9 +418,17 @@ def main():
     ap.add_argument("--inject-fault", metavar="AGENT",
                     help="replace this agent's prompt with a sloppy first pass "
                          "(e.g. worker-low) to exercise the refactor ladder")
+    ap.add_argument("--effort", default="medium", choices=["low", "medium", "high", "xhigh", "max"],
+                    help="main-session effort (the handoff pins medium)")
+    ap.add_argument("--effort-shift-down", action="store_true",
+                    help="karagoz only: run every step one effort level lower (A/B)")
+    ap.add_argument("--worker-model", metavar="MODEL",
+                    help="run the Workers on this model instead of opus (e.g. sonnet)")
     ap.add_argument("--legacy-plan", action="store_true",
                     help="karagoz only: convert the plan to the pre-1.2 model-column contract")
     a = ap.parse_args()
+    global MAIN_EFFORT
+    MAIN_EFFORT = a.effort
     if a.mode == "report":
         return report()
     if a.mode == "reanalyze":
@@ -412,9 +444,11 @@ def main():
     snapshot_plugin(plugin, a.plugin_ref)
     if a.inject_fault and fresh:
         inject_fault(plugin, a.inject_fault)
+    if a.worker_model and fresh:
+        use_worker_model(plugin, a.worker_model)
     with ThreadPoolExecutor(a.runs) as ex:
         list(ex.map(lambda i: one(a.mode, a.label, i, a.model, a.max_ticks,
-                                  a.scenario, a.legacy_plan, a.plugin_ref),
+                                  a.scenario, a.legacy_plan, a.plugin_ref, a.effort_shift_down),
                     range(1, a.runs + 1)))
     report()
 

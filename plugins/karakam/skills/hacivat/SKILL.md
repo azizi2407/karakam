@@ -86,11 +86,12 @@ To hand over:
 0. Commit your own work, then the plan: git add ./<project>/plan && git commit -m "plan"
 1. /clear
 2. /model opus                 (skip if the session is already on Opus)
-3. /autocompact <window>
-4. /loop 20m karagoz: execute the plan in ./<project>/plan/
+3. /effort medium
+4. /autocompact <window>
+5. /loop 20m karagoz: execute the plan in ./<project>/plan/
 ```
 
-Step 0 matters in a git project (skip it otherwise): Karagöz commits each finished step, reverts a failed one on its `files_touched` back to the last commit, and branches parallel steps from the last commit — so uncommitted work of the user's in those files could be lost, and would be invisible to parallel Workers. Ask the user to commit their own changes themselves rather than sweeping everything up with `git add -A`, which would also commit stray files such as an un-ignored `.env`. The loop prompt must name `karagoz` — that name is what triggers the execution skill on every tick. `/clear` starts execution on a fresh context, and switching model or compaction settings right after it costs nothing, because there is no cached conversation yet to rewrite.
+Step 0 matters in a git project (skip it otherwise): Karagöz commits each finished step, reverts a failed one on its `files_touched` back to the last commit, and branches parallel steps from the last commit — so uncommitted work of the user's in those files could be lost, and would be invisible to parallel Workers. Ask the user to commit their own changes themselves rather than sweeping everything up with `git add -A`, which would also commit stray files such as an un-ignored `.env`. The loop prompt must name `karagoz` — that name is what triggers the execution skill on every tick. `/clear` starts execution on a fresh context, and switching model, effort or compaction settings right after it costs nothing, because there is no cached conversation yet to rewrite. `/effort medium` is there because the session's effort carries over from whatever the user last set, and the Coordinator — 30–40% of the execution bill — runs at it on every turn: a session left at `xhigh` would pay for deep thinking on mechanical ledger work. Medium is what Karagöz was measured at; the sub-agents' effort is set in their own definitions and isn't affected.
 
 Choose the interval with the user, and tell them why it matters: every tick resends the whole loop conversation, which is cheap only while the prompt cache is warm. On a Claude subscription the cache lives an hour, so `20m` is fine and spreads the work across their usage window. On an API key or a cloud provider (or a subscription drawing on usage credits) it lives five minutes — there, drop the interval (`/loop karagoz: …`), and each tick follows the previous one straight away.
 

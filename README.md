@@ -44,11 +44,12 @@ To hand over:
 0. Commit your own work, then the plan: git add ./my-project/plan && git commit -m "plan"
 1. /clear
 2. /model opus                 (skip if the session is already on Opus)
-3. /autocompact 150k
-4. /loop 20m karagoz: execute the plan in ./my-project/plan/
+3. /effort medium
+4. /autocompact 150k
+5. /loop 20m karagoz: execute the plan in ./my-project/plan/
 ```
 
-Commit first (in a git project): Karagöz checkpoints every finished step with git and reverts a failed one on its own files, so it has to start from a clean tree — commit your own changes yourself rather than with a blanket `git add -A`, which would sweep in stray files too. `/clear` matters — the execution phase must start on a fresh context, and that fresh start is also the one moment where switching model or compaction settings costs nothing. The `/autocompact` window is sized to the plan — 150k–250k depending on how many steps run in parallel. Claude Code's default for Opus 5.5 is 1M tokens, which would let the loop's conversation, resent on every turn, grow for hours; a smaller window caps that, while leaving room for several ticks between compactions (compaction fires ~33K below the window, and a session starts at ~35–50K before any work). On an API key, drop the interval (`/loop karagoz: …`): the prompt cache lives five minutes there, and a 20-minute gap would re-write the whole conversation on every tick. Then Karagöz takes over and works through the plan on its own, closing the loop when the job is done.
+Commit first (in a git project): Karagöz checkpoints every finished step with git and reverts a failed one on its own files, so it has to start from a clean tree — commit your own changes yourself rather than with a blanket `git add -A`, which would sweep in stray files too. `/clear` matters — the execution phase must start on a fresh context, and that fresh start is also the one moment where switching model, effort or compaction settings costs nothing. `/effort medium` pins the Coordinator — your session, 30–40% of the execution bill — to the effort it was measured at; the session otherwise keeps whatever effort you last set, and a leftover `xhigh` would pay for deep thinking on mechanical ledger work every turn. The sub-agents' effort lives in their own definitions. The `/autocompact` window is sized to the plan — 150k–250k depending on how many steps run in parallel. Claude Code's default for Opus 5.5 is 1M tokens, which would let the loop's conversation, resent on every turn, grow for hours; a smaller window caps that, while leaving room for several ticks between compactions (compaction fires ~33K below the window, and a session starts at ~35–50K before any work). On an API key, drop the interval (`/loop karagoz: …`): the prompt cache lives five minutes there, and a 20-minute gap would re-write the whole conversation on every tick. Then Karagöz takes over and works through the plan on its own, closing the loop when the job is done.
 
 **These skills only run when you name them.** They will not fire on their own, however much your request sounds like a job for them. That's deliberate: they spin up an expensive machine, and you decide when that's worth it.
 
@@ -60,7 +61,7 @@ Four roles:
 |---|---|---|
 | **Creator (Hacivat)** | Clarify → plan → critic panel → hill-climb → handoff files. Talks to you. | Your session (Opus) |
 | **Critic** | Reviews the plan through one of four lenses. | `karakam:critic` — Opus, medium effort |
-| **Coordinator (Karagöz)** | One tick = the currently runnable step(s) to `done`. Picks them, sends the Workers, calls the Observers, updates the ledger. Writes no code. | Your session (Opus) |
+| **Coordinator (Karagöz)** | One tick = the currently runnable step(s) to `done`. Picks them, sends the Workers, calls the Observers, updates the ledger. Writes no code. | Your session (Opus, medium effort) |
 | **Worker** | Executes one step, test-first. Writes a short log. | `karakam:worker-<effort>` — Opus, at the effort Hacivat set for the step |
 | **Observer** | Audits the step adversarially — runs the checks itself, tries to refute it. | `karakam:observer-medium`; two `observer-high` on critical steps |
 
