@@ -25,6 +25,11 @@ Write everything in the language the step file is written in.
    and complete what's missing.
 4. Don't commit, in the project root or a worktree — the Coordinator commits
    your change after the Observer has audited it.
+5. Finish the step in this one turn. Don't end on a progress summary that
+   announces your next action, an offer to continue, or a report that a
+   milestone is done — take that action instead. Stop only when the checks
+   pass, or when something outside `files_touched` genuinely blocks you (then
+   say what). A reply of "not done" costs the run a whole refactor round.
 
 ## Scope
 

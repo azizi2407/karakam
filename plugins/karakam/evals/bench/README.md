@@ -14,7 +14,13 @@ python3 run.py karagoz --scenario refactor --label v1.1 --plugin-ref 23ac7be --l
 
 # exercise the effort ladder: worker-low becomes a deliberately sloppy first pass
 python3 run.py karagoz --scenario refactor --label sloppy --inject-fault worker-low
+
+# A/B: every step one effort level lower; Workers on another model
+python3 run.py karagoz --label down --effort-shift-down
+python3 run.py karagoz --scenario refactor --label sonnet --worker-model sonnet
 ```
+
+The main session runs at `--effort medium` unless told otherwise, as the handoff pins it.
 
 Each run snapshots the plugin at launch (`results/<mode>/<label>/plugin/`), so you can keep editing the skills while it runs. Results are git-ignored. Costs are at API list prices; on a subscription they're a measure of work done, not a bill.
 
@@ -42,3 +48,17 @@ The default scenario's plan is deliberately well specified — no version measur
 - **Spec faults are handled.** Every run of both versions caught step 02's fault on the first audit, widened `files_touched` to include `tests/test_rapor.py`, and passed after one round. 1.2 kept the step's effort for that round (`medium→medium`), as it should when the fault is the spec's; when the Worker itself reported the criteria unsatisfiable, the Coordinator fixed the spec without waiting for an audit.
 - **Opus at low effort didn't fall for the Worker trap.** Neither the plain casing trap (which also didn't catch 1.1's Haiku) nor the hardened one: 6/6 runs got step 01 right on the first `low` pass.
 - **The ladder works when a Worker does fail.** With `worker-low` replaced by a deliberately sloppy first pass, the Observer rejected it both times and the Coordinator sent the next round one level up (`low→medium`), which passed. The recovery round added about $0.30 per run.
+
+### 1.3: lower efforts, `low → high` ladder, Coordinator pinned at medium (2 runs each)
+
+| scenario | plan's efforts | one level lower (`--effort-shift-down`, 1.3's rubric) |
+|---|---|---|
+| `stokcu` (clean) | $1.46 · 18/18 · 0 rounds | $1.24 · 18/18 · 0 rounds |
+| `refactor`, hardened | $1.66 · 30/30 · 1 round | $1.47 · 30/30 · 1 round |
+| `refactor`, hardened, `--inject-fault worker-low` | $1.85 · 30/30 · 2 rounds (`low→high`) | — |
+| `refactor`, hardened, `--worker-model sonnet` | $1.28 · 30/30 · 0–1 rounds | — |
+
+- **One level lower cost 11–15% less and lost nothing.** Every step at `low` on the refactor plan — the critical step 03 and the trap step 01 included — and `low`/`low`/`medium` on the clean plan: same hidden-test results, no extra rounds, Worker spend down about a third. Hacivat's rubric now starts well-specified steps at `low`.
+- **`low→high` recovers for less than `low→medium` did.** With the sloppy `worker-low`, the second Worker ran at `high` and passed both times; the recovery added about $0.20 over the plain hard run, against about $0.30 for 1.2's one-level step. The spec-fault round still ran at the step's own effort (`medium→medium`, `low→low`), as it should.
+- **Sonnet 5.5 Workers matched Opus here.** 30/30 in both runs, Worker spend $0.15–0.19 against $0.44–0.50 for Opus at the same efforts. Observers stayed on Opus. Two runs on one small task; the plugin's default is still Opus.
+- **Hacivat applies the new rubric.** Planning the brief cost $2.71 (2 runs) and produced 5-step plans with 3–4 steps at `low` and the critical or interpretive ones at `medium`.

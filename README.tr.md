@@ -44,11 +44,12 @@ Devretmek için:
 0. Önce kendi çalışmanı, sonra planı commit'le: git add ./my-project/plan && git commit -m "plan"
 1. /clear
 2. /model opus                 (oturum zaten Opus'taysa atla)
-3. /autocompact 150k
-4. /loop 20m karagoz: ./my-project/plan/ içindeki planı uygula
+3. /effort medium
+4. /autocompact 150k
+5. /loop 20m karagoz: ./my-project/plan/ içindeki planı uygula
 ```
 
-Önce commit'le (git projesindeysen): Karagöz her biten adımı git ile kaydeder ve başarısız olanı kendi dosyalarında geri alır, bu yüzden temiz bir çalışma ağacından başlamalı — kendi değişikliklerini, başıboş dosyaları da süpürecek toptan bir `git add -A` yerine kendin commit'le. `/clear` önemli — yürütme aşaması temiz bir context ile başlamalı; bu temiz başlangıç aynı zamanda model ya da compaction ayarını değiştirmenin hiçbir şeye mal olmadığı tek an. `/autocompact` penceresi plana göre ayarlanır — paralel koşan adım sayısına göre 150k–250k. Claude Code'un Opus 5.5 için varsayılanı 1M token; bu, her turda yeniden gönderilen loop konuşmasının saatlerce büyümesine izin verir. Daha küçük bir pencere bunu sınırlar ama compaction'lar arasında birkaç tick'lik yer bırakır (compaction pencerenin ~33K altında tetiklenir, bir oturum da daha iş başlamadan ~35–50K ile açılır). API key kullanıyorsan aralığı kaldır (`/loop karagoz: …`): orada prompt cache beş dakika yaşar ve 20 dakikalık bir boşluk her tick'te tüm konuşmanın cache'e yeniden yazılması demektir. Ardından Karagöz devralır ve planı kendi başına yürütür, iş bittiğinde loop'u kendisi kapatır.
+Önce commit'le (git projesindeysen): Karagöz her biten adımı git ile kaydeder ve başarısız olanı kendi dosyalarında geri alır, bu yüzden temiz bir çalışma ağacından başlamalı — kendi değişikliklerini, başıboş dosyaları da süpürecek toptan bir `git add -A` yerine kendin commit'le. `/clear` önemli — yürütme aşaması temiz bir context ile başlamalı; bu temiz başlangıç aynı zamanda model, effort ya da compaction ayarını değiştirmenin hiçbir şeye mal olmadığı tek an. `/effort medium`, Koordinatörü — yani senin oturumunu, yürütme faturasının %30–40'ı — ölçüldüğü effort'a sabitler; yoksa oturum en son ayarladığın effort'la devam eder ve başka bir iş için bırakılmış bir `xhigh`, her turda mekanik defter işine derin düşünme parası öder. Alt-ajanların effort'u kendi tanımlarında durur. `/autocompact` penceresi plana göre ayarlanır — paralel koşan adım sayısına göre 150k–250k. Claude Code'un Opus 5.5 için varsayılanı 1M token; bu, her turda yeniden gönderilen loop konuşmasının saatlerce büyümesine izin verir. Daha küçük bir pencere bunu sınırlar ama compaction'lar arasında birkaç tick'lik yer bırakır (compaction pencerenin ~33K altında tetiklenir, bir oturum da daha iş başlamadan ~35–50K ile açılır). API key kullanıyorsan aralığı kaldır (`/loop karagoz: …`): orada prompt cache beş dakika yaşar ve 20 dakikalık bir boşluk her tick'te tüm konuşmanın cache'e yeniden yazılması demektir. Ardından Karagöz devralır ve planı kendi başına yürütür, iş bittiğinde loop'u kendisi kapatır.
 
 **Bu skill'ler sadece adları anıldığında çalışır.** İsteğiniz onlara ne kadar uygun görünse görünsün, kendiliklerinden tetiklenmezler. Bu bilinçli bir tercih: pahalı bir makine devreye giriyor ve buna değip değmeyeceğine sen karar veriyorsun.
 
@@ -60,11 +61,11 @@ Dört rol:
 |---|---|---|
 | **Kurgucu (Hacivat)** | Netleştir → planla → eleştiri paneli → tırmanış → devir dosyaları. Seninle konuşan taraf. | Senin oturumun (Opus) |
 | **Eleştirmen** | Planı dört mercekten biriyle inceler. | `karakam:critic` — Opus, medium effort |
-| **Koordinatör (Karagöz)** | Bir tick = o an koşulabilen adım(lar)ın `done` olması. Onları seçer, Worker'ları gönderir, Observer'ları çağırır, defteri günceller. Kod yazmaz. | Senin oturumun (Opus) |
+| **Koordinatör (Karagöz)** | Bir tick = o an koşulabilen adım(lar)ın `done` olması. Onları seçer, Worker'ları gönderir, Observer'ları çağırır, defteri günceller. Kod yazmaz. | Senin oturumun (Opus, medium effort) |
 | **Worker** | Bir adımı test-first mantığıyla yürütür. Kısa bir log yazar. | `karakam:worker-<effort>` — Opus, Hacivat'ın adıma verdiği effort ile |
 | **Observer** | Adımı düşmanca denetler — kontrolleri kendisi çalıştırır, çürütmeye çalışır. | `karakam:observer-medium`; kritik adımlarda iki `observer-high` |
 
-Her alt-ajan bir plugin agent'ı (`plugins/karakam/agents/`): protokolü, araçları, modeli ve effort'u tanımında durur; Koordinatör bunları her çağrıda yeniden yazmaz. Kod yazma ve denetim Opus'ta kalır — maliyet kaldıracı küçük model değil **effort**: ikinci tura ihtiyaç duyan bir Worker, ucuz token'larla kazanılandan fazlasına mal olur. Bir adım denetimden geçemezse her refactor turu bir effort kademesi yukarı çıkar (`low → medium → high → xhigh`). Fable, sen istemedikçe hiç kullanılmaz.
+Her alt-ajan bir plugin agent'ı (`plugins/karakam/agents/`): protokolü, araçları, modeli ve effort'u tanımında durur; Koordinatör bunları her çağrıda yeniden yazmaz. Kod yazma ve denetim Opus'ta koşar, maliyet kaldıracı **effort**: Hacivat iyi tanımlanmış adımları `low`'dan başlatır, kaçanı Observer yakalar. Bir adım denetimden geçemezse sonraki tur doğrudan `high`'a, ancak ondan sonra `xhigh`'a çıkar (`low → high → xhigh`) — tekrar denemenin karşılığı `high`'daki ikinci denemede alınır. Fable, sen istemedikçe hiç kullanılmaz.
 
 İki yarı arasındaki devir dört dosyadan oluşur:
 
@@ -116,19 +117,22 @@ Bir adım refactor turlarından sonra da geçemezse, loop seni bekleyip durmaz. 
 
 Tahmin değil, ölçüm. [`plugins/karakam/evals/bench`](plugins/karakam/evals/bench) iki yarıyı sabit görevlerde headless koşturur, faturayı rollere böler ve ürünü ajanların hiç görmediği gizli kabul testleriyle notlar. Fiyatlar Opus 5.5'in API liste fiyatları; abonelikteysen bunları bir koşunun kullanımından ne kadar yiyeceği olarak oku.
 
-| Benchmark | 1.1 (Sonnet/Haiku alt-ajanlar) | 1.2 (her şey Opus'ta, effort ayarlı) |
-|---|---|---|
-| **Karagöz, temiz koşu** — 3 adımlı plan, 2 paralel + 1 kritik | $1.83 · gizli testler 18/18 | **$1.46** · 18/18 |
-| **Karagöz, zor koşu** — mevcut kod tabanı, planlanmış bir spec hatası (1 refactor turu) | $2.23 · 21/21 · ~10,5 dk | **$1.66** · 21/21 · ~4,3 dk |
-| **Karagöz, zor koşu + özensiz ilk Worker** (hata enjeksiyonu, 2 refactor turu) | — | $1.97 · 30/30 |
-| **Hacivat** — 6 adımlı bir planın planlanması, eleştiri paneli dahil | $3.35 | **$3.08** |
+| Benchmark | 1.1 (Sonnet/Haiku alt-ajanlar) | 1.2 (her şey Opus'ta, effort ayarlı) | 1.3 (adımlar `low`'dan başlar) |
+|---|---|---|---|
+| **Karagöz, temiz koşu** — 3 adımlı plan, 2 paralel + 1 kritik | $1.83 · gizli testler 18/18 | $1.46 · 18/18 | **$1.24** · 18/18 |
+| **Karagöz, zor koşu** — mevcut kod tabanı, planlanmış bir spec hatası (1 refactor turu) | $2.23 · 21/21 · ~10,5 dk | $1.66 · 21/21 · ~4,3 dk | **$1.47** · 30/30 · ~3,7 dk |
+| **Karagöz, zor koşu + özensiz ilk Worker** (hata enjeksiyonu, 2 refactor turu) | — | $1.97 · 30/30 | **$1.85** · 30/30 |
+| **Hacivat** — 6 adımlı bir planın planlanması, eleştiri paneli dahil | $3.35 | $3.08 | **$2.71** |
 
 **Her şey Opus'ta koştuğu hâlde 1.2 neden daha ucuz:** medium effort'taki Opus 5.5 daha az turda bitiriyor; yürütme faturasının %30–40'ını tutan Koordinatör inceldi (her çağrıda yeniden yazılan prompt şablonları yerine plugin agent'ları, nadir yollar gerektiğinde yükleniyor); ve eleştiri panelinin sonraki turları tüm planı sıfırdan incelemek yerine önceki itirazların kapanıp kapanmadığını doğruluyor. Bu son değişiklik olmadan Opus eleştirmenleri her turda yeni bir major itiraz dalgası çıkardı ve planlama $5.18'e mal oldu.
 
+**1.3 neden yine daha ucuz:** her adım 1.2'dekinden bir effort kademesi aşağıda koşuyor — iyi tanımlanmış iş, kritik adım dahil, `low`'da — ve gizli testler aynı çıktı, fazladan refactor turu olmadı; Worker harcaması yaklaşık üçte bir düştü. Devir şablonu da Koordinatörü, bu sayıların hepsinin ölçüldüğü `medium` effort'a sabitliyor.
+
 **Bir adım başarısız olunca nasıl toparlanıyor:**
 - **Plandaki hata tekrar denenmez, düzeltilir.** İki sürümün de her zor koşusunda, `files_touched` listesi dar tutulmuş adım ilk denetimde kaldı; Koordinatör bunu tek adımlık bir spec hatası olarak tanıdı, listeyi genişletti ve adım bir sonraki turda geçti — aynı effort ile, çünkü yanlış bir spec daha çok düşünerek düzelmez.
-- **Zayıf bir Worker'ın yerine daha güçlüsü gelir.** İlk Worker kasten özensiz bir geçişle değiştirildiğinde Observer her seferinde reddetti; bir sonraki tur bir effort kademesi yukarı çıktı (`low → medium`) ve geçti, maliyeti ~$0.30 fazlaydı.
+- **Zayıf bir Worker'ın yerine daha güçlüsü gelir.** İlk Worker kasten özensiz bir geçişle değiştirildiğinde Observer her seferinde reddetti ve sonraki Worker geçti. 1.2 onu bir kademe yukarı gönderiyordu (`low → medium`, ~$0.30 fazla); 1.3 doğrudan `high`'a çıkıyor (`low → high`) ve toparlanma ~$0.20 tuttu.
 - **Low effort'taki Opus'un buna nadiren ihtiyacı oluyor.** Kuralları birbiriyle etkileşen (Türkçe büyük/küçük harf, Unicode normalizasyonu, aksan duyarlılığı — her yanlış kestirme gizli testlerde kalıyor) `low` etiketli bir adım 6 koşunun 6'sında ilk geçişte çözüldü.
+- **Sonnet 5.5 Worker'lar da geçti, daha ucuza.** Tüm Worker'lar Sonnet 5.5'e alındığında (Observer'lar hâlâ Opus'ta) zor koşu iki koşuda da 30/30 geçti; aynı effort'lardaki Opus Worker'larla $1.66'ya karşı $1.28 — Worker harcaması ~$0.47'den ~$0.17'ye düştü. Tek bir küçük görevde iki koşu, her adımın miras aldığı varsayılanı değiştirmeye yetmez; bu yüzden Worker'lar Opus'ta kalıyor. Bench'in `--worker-model` seçeneği karşılaştırmayı yeniden koşar.
 
 **Adım başına beklenti:** küçük ve iyi tanımlanmış bir adım baştan sona yaklaşık **$0.3–0.5**, daha büyüğü ~$1'a kadar, kritik bir adım (high effort'ta iki Observer) bunun yaklaşık iki katı; her refactor turu bir Worker ve bir Observer koşusu daha ekler. Hacivat bunu başlamadan önce senin planın için bir aralığa çevirir.
 

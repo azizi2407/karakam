@@ -73,7 +73,7 @@ Audit each step once its Worker has returned — the Observers of a whole batch 
   - If the commit itself fails (a failing hook, no git identity), the step passed but isn't checkpointed, and every later step would hit the same wall. Mark it `blocked` with the git error in the note, leave its files as they are, and end the loop, telling the user what to fix.
 - **FAIL** → if the Worker followed the spec and the spec itself looks wrong (the Observer's evidence contradicts the spec, or the two critical Observers disagree), follow `references/failure.md` before refactoring. Otherwise refactor within the step:
   - Mark it `refactoring` with the round and effort in the note, e.g. `refactor 1/3 @high` — the note is the only place a later tick can see how many rounds are spent. Keep any `recovered Nx` already in the note.
-  - Each round, send a new Worker one effort level up from the previous round (`low` → `medium` → `high` → `xhigh`, then it stays at `xhigh`), with the Observer's findings or report path in its message. Then audit again.
+  - Each round, send a new Worker at `high` — or at `xhigh` if the previous round already ran at `high` or above — with the Observer's findings or report path in its message. Then audit again. The second attempt at `high` buys most of what a retry can; `xhigh` costs far more for little extra, so it's only the last resort.
   - If a round changed only a plan or doc file and no code, re-run only the Observer lens that objected.
   - At most three rounds. PASS → as above. Still FAIL → mark it `blocked`, clean up per `references/failure.md`, and continue: its dependents wait, independent steps carry on next tick.
 

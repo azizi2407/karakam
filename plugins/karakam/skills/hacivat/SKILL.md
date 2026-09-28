@@ -86,11 +86,12 @@ To hand over:
 0. Commit your own work, then the plan: git add ./<project>/plan && git commit -m "plan"
 1. /clear
 2. /model opus                 (skip if the session is already on Opus)
-3. /autocompact <window>
-4. /loop 20m karagoz: execute the plan in ./<project>/plan/
+3. /effort medium
+4. /autocompact <window>
+5. /loop 20m karagoz: execute the plan in ./<project>/plan/
 ```
 
-Step 0 matters in a git project (skip it otherwise): Karagöz commits each finished step, reverts a failed one on its `files_touched` back to the last commit, and branches parallel steps from the last commit — so uncommitted work of the user's in those files could be lost, and would be invisible to parallel Workers. Ask the user to commit their own changes themselves rather than sweeping everything up with `git add -A`, which would also commit stray files such as an un-ignored `.env`. The loop prompt must name `karagoz` — that name is what triggers the execution skill on every tick. `/clear` starts execution on a fresh context, and switching model or compaction settings right after it costs nothing, because there is no cached conversation yet to rewrite.
+Step 0 matters in a git project (skip it otherwise): Karagöz commits each finished step, reverts a failed one on its `files_touched` back to the last commit, and branches parallel steps from the last commit — so uncommitted work of the user's in those files could be lost, and would be invisible to parallel Workers. Ask the user to commit their own changes themselves rather than sweeping everything up with `git add -A`, which would also commit stray files such as an un-ignored `.env`. The loop prompt must name `karagoz` — that name is what triggers the execution skill on every tick. `/clear` starts execution on a fresh context, and switching model, effort or compaction settings right after it costs nothing, because there is no cached conversation yet to rewrite. `/effort medium` is there because the session's effort carries over from whatever the user last set, and the Coordinator — 30–40% of the execution bill — runs at it on every turn: a session left at `xhigh` would pay for deep thinking on mechanical ledger work. Medium is what Karagöz was measured at; the sub-agents' effort is set in their own definitions and isn't affected.
 
 Choose the interval with the user, and tell them why it matters: every tick resends the whole loop conversation, which is cheap only while the prompt cache is warm. On a Claude subscription the cache lives an hour, so `20m` is fine and spreads the work across their usage window. On an API key or a cloud provider (or a subscription drawing on usage credits) it lives five minutes — there, drop the interval (`/loop karagoz: …`), and each tick follows the previous one straight away.
 
@@ -111,11 +112,13 @@ Karagöz spins for hours only if every tick stays small, and you set that up now
 
 Every Worker runs on Opus; you set how hard it thinks. Effort decides how much reasoning and how many tool calls the Worker spends per turn — a cheaper lever than a bigger model, and Karagöz raises it on its own when a step has to be redone.
 
-- **low** — mechanical work with an obvious shape: a rename across files, applying a known pattern, a config or version change.
-- **medium** — the default for well-scoped work: a module, an endpoint, a schema with a clear contract.
-- **high** — work that spans layers or needs real design judgment: cross-cutting changes, tricky algorithms, integrations where the obvious fix tends to stop one layer short.
+- **low** — the default for a well-specified step: a module, an endpoint, a schema, a known pattern, whose contract is clear and whose acceptance criteria pin the behavior down. The Observer is the safety net: a `low` step that fails its audit is redone at `high`.
+- **medium** — the contract leaves room for interpretation, or the step makes a design decision the methodology doesn't settle.
+- **high** — work that spans layers and needs real design judgment: cross-cutting changes, tricky algorithms, integrations where the obvious fix tends to stop one layer short.
 
-Don't assign smaller models to Workers: they write code, and a Worker that needs a second round costs more than the savings. Use Fable only if the user asks for it (see the handoff above).
+Start low and let the ladder catch the misses: that's the cheapest policy measured. Assigning every step one level below the older rubric (medium by default) cost 11–15% less on both benchmark plans, with the same hidden-test results and no extra refactor rounds — even a critical step at `low` passed both of its Observers.
+
+Don't move Workers to another model on your own; use Fable only if the user asks for it (see the handoff above).
 
 Mark a step `critical: true` when a subtle mistake there would be expensive and hard to spot later — security, money, data integrity, the one entry point everything goes through. Karagöz audits critical steps with two Observers through different lenses, either of which can veto.
 

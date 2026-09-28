@@ -44,11 +44,12 @@ To hand over:
 0. Commit your own work, then the plan: git add ./my-project/plan && git commit -m "plan"
 1. /clear
 2. /model opus                 (skip if the session is already on Opus)
-3. /autocompact 150k
-4. /loop 20m karagoz: execute the plan in ./my-project/plan/
+3. /effort medium
+4. /autocompact 150k
+5. /loop 20m karagoz: execute the plan in ./my-project/plan/
 ```
 
-Commit first (in a git project): Karagöz checkpoints every finished step with git and reverts a failed one on its own files, so it has to start from a clean tree — commit your own changes yourself rather than with a blanket `git add -A`, which would sweep in stray files too. `/clear` matters — the execution phase must start on a fresh context, and that fresh start is also the one moment where switching model or compaction settings costs nothing. The `/autocompact` window is sized to the plan — 150k–250k depending on how many steps run in parallel. Claude Code's default for Opus 5.5 is 1M tokens, which would let the loop's conversation, resent on every turn, grow for hours; a smaller window caps that, while leaving room for several ticks between compactions (compaction fires ~33K below the window, and a session starts at ~35–50K before any work). On an API key, drop the interval (`/loop karagoz: …`): the prompt cache lives five minutes there, and a 20-minute gap would re-write the whole conversation on every tick. Then Karagöz takes over and works through the plan on its own, closing the loop when the job is done.
+Commit first (in a git project): Karagöz checkpoints every finished step with git and reverts a failed one on its own files, so it has to start from a clean tree — commit your own changes yourself rather than with a blanket `git add -A`, which would sweep in stray files too. `/clear` matters — the execution phase must start on a fresh context, and that fresh start is also the one moment where switching model, effort or compaction settings costs nothing. `/effort medium` pins the Coordinator — your session, 30–40% of the execution bill — to the effort it was measured at; the session otherwise keeps whatever effort you last set, and a leftover `xhigh` would pay for deep thinking on mechanical ledger work every turn. The sub-agents' effort lives in their own definitions. The `/autocompact` window is sized to the plan — 150k–250k depending on how many steps run in parallel. Claude Code's default for Opus 5.5 is 1M tokens, which would let the loop's conversation, resent on every turn, grow for hours; a smaller window caps that, while leaving room for several ticks between compactions (compaction fires ~33K below the window, and a session starts at ~35–50K before any work). On an API key, drop the interval (`/loop karagoz: …`): the prompt cache lives five minutes there, and a 20-minute gap would re-write the whole conversation on every tick. Then Karagöz takes over and works through the plan on its own, closing the loop when the job is done.
 
 **These skills only run when you name them.** They will not fire on their own, however much your request sounds like a job for them. That's deliberate: they spin up an expensive machine, and you decide when that's worth it.
 
@@ -60,11 +61,11 @@ Four roles:
 |---|---|---|
 | **Creator (Hacivat)** | Clarify → plan → critic panel → hill-climb → handoff files. Talks to you. | Your session (Opus) |
 | **Critic** | Reviews the plan through one of four lenses. | `karakam:critic` — Opus, medium effort |
-| **Coordinator (Karagöz)** | One tick = the currently runnable step(s) to `done`. Picks them, sends the Workers, calls the Observers, updates the ledger. Writes no code. | Your session (Opus) |
+| **Coordinator (Karagöz)** | One tick = the currently runnable step(s) to `done`. Picks them, sends the Workers, calls the Observers, updates the ledger. Writes no code. | Your session (Opus, medium effort) |
 | **Worker** | Executes one step, test-first. Writes a short log. | `karakam:worker-<effort>` — Opus, at the effort Hacivat set for the step |
 | **Observer** | Audits the step adversarially — runs the checks itself, tries to refute it. | `karakam:observer-medium`; two `observer-high` on critical steps |
 
-Every sub-agent is a plugin agent (`plugins/karakam/agents/`), so its protocol, tools, model and effort live in its definition rather than being re-typed by the Coordinator on every call. Code-writing and auditing stay on Opus — the cost lever is **effort**, not a smaller model: a Worker that needs a second round costs more than the cheaper tokens saved. When a step fails its audit, each refactor round goes one effort level up (`low → medium → high → xhigh`). Fable is never used unless you ask for it.
+Every sub-agent is a plugin agent (`plugins/karakam/agents/`), so its protocol, tools, model and effort live in its definition rather than being re-typed by the Coordinator on every call. Code-writing and auditing run on Opus, and the cost lever is **effort**: Hacivat starts well-specified steps at `low` and lets the Observer catch the misses. When a step fails its audit, the next round goes straight to `high`, and to `xhigh` only after that (`low → high → xhigh`) — the second attempt at `high` is where a retry pays off. Fable is never used unless you ask for it.
 
 The handoff between the halves is four files:
 
@@ -116,19 +117,22 @@ When a step can't pass after its refactor rounds, the loop doesn't stall waiting
 
 Measured, not guessed. [`plugins/karakam/evals/bench`](plugins/karakam/evals/bench) runs both halves headless on fixed tasks, splits the bill by role, and grades the product with hidden acceptance tests the agents never see. Prices are Opus 5.5 API list prices; on a subscription, read them as how much of your usage a run takes.
 
-| Benchmark | 1.1 (Sonnet/Haiku sub-agents) | 1.2 (all Opus, effort-tuned) |
-|---|---|---|
-| **Karagöz, clean run** — 3-step plan, 2 parallel + 1 critical | $1.83 · hidden tests 18/18 | **$1.46** · 18/18 |
-| **Karagöz, hard run** — existing codebase, a planted spec fault (1 refactor round) | $2.23 · 21/21 · ~10.5 min | **$1.66** · 21/21 · ~4.3 min |
-| **Karagöz, hard run + sloppy first Worker** (fault injection, 2 refactor rounds) | — | $1.97 · 30/30 |
-| **Hacivat** — planning a 6-step plan, critic panel included | $3.35 | **$3.08** |
+| Benchmark | 1.1 (Sonnet/Haiku sub-agents) | 1.2 (all Opus, effort-tuned) | 1.3 (steps start at `low`) |
+|---|---|---|---|
+| **Karagöz, clean run** — 3-step plan, 2 parallel + 1 critical | $1.83 · hidden tests 18/18 | $1.46 · 18/18 | **$1.24** · 18/18 |
+| **Karagöz, hard run** — existing codebase, a planted spec fault (1 refactor round) | $2.23 · 21/21 · ~10.5 min | $1.66 · 21/21 · ~4.3 min | **$1.47** · 30/30 · ~3.7 min |
+| **Karagöz, hard run + sloppy first Worker** (fault injection, 2 refactor rounds) | — | $1.97 · 30/30 | **$1.85** · 30/30 |
+| **Hacivat** — planning a 6-step plan, critic panel included | $3.35 | $3.08 | **$2.71** |
 
 **Why 1.2 is cheaper despite running everything on Opus:** Opus 5.5 at medium effort finishes in fewer turns; the Coordinator — 30–40% of the execution bill — got thinner (plugin agents instead of prompt templates re-typed on every call, rare paths loaded on demand); and the critic panel's later rounds verify earlier objections instead of reviewing the whole plan afresh. Without that last change, Opus critics raised a new crop of major objections every round and planning cost $5.18.
 
+**Why 1.3 is cheaper again:** every step runs one effort level lower than in 1.2 — well-specified work at `low`, even on the critical step — and the hidden tests came out the same, with no extra refactor rounds; Worker spend fell by about a third. The handoff also pins the Coordinator at `medium`, the effort all of these numbers were measured at.
+
 **How it recovers when a step fails:**
 - **A fault in the plan gets fixed, not retried.** In every hard run of both versions, the step whose `files_touched` was too narrow failed its first audit; the Coordinator recognised a single-step spec fault, widened the list, and the step passed on the next round — at the same effort, since more thinking can't fix a wrong spec.
-- **A weak Worker gets a stronger one.** With the first Worker replaced by a deliberately sloppy pass, the Observer rejected it every time and the next round went one effort level up (`low → medium`) and passed, for about $0.30 more.
+- **A weak Worker gets a stronger one.** With the first Worker replaced by a deliberately sloppy pass, the Observer rejected it every time and the next Worker passed. 1.2 sent it one level up (`low → medium`) for about $0.30 more; 1.3 goes straight to `high` (`low → high`) and the recovery cost about $0.20.
 - **Opus at low effort rarely needs that.** A step labelled `low` whose rules interact (Turkish casing, Unicode normalization, accent sensitivity — each wrong shortcut fails the hidden tests) was solved on the first pass in 6 of 6 runs.
+- **Sonnet 5.5 Workers passed too, for less.** With every Worker switched to Sonnet 5.5 (Observers still on Opus), the hard run passed 30/30 in both runs at $1.28 against $1.66 for Opus Workers at the same efforts — Worker spend fell from about $0.47 to $0.17. Two runs on one small task aren't enough to change the default every step inherits, so Workers stay on Opus; the bench's `--worker-model` option reruns the comparison.
 
 **What to expect per step:** a small, well-specified step runs about **$0.3–0.5** end to end, a larger one up to ~$1, a critical step (two Observers at high effort) about twice that, and every refactor round adds another Worker and Observer run. Hacivat turns that into a range for your plan before you start.
 
