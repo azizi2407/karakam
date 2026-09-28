@@ -122,7 +122,7 @@ Measured, not guessed. [`plugins/karakam/evals/bench`](plugins/karakam/evals/ben
 | **Karagöz, clean run** — 3-step plan, 2 parallel + 1 critical | $1.83 · hidden tests 18/18 | $1.46 · 18/18 | **$1.24** · 18/18 |
 | **Karagöz, hard run** — existing codebase, a planted spec fault (1 refactor round) | $2.23 · 21/21 · ~10.5 min | $1.66 · 21/21 · ~4.3 min | **$1.47** · 30/30 · ~3.7 min |
 | **Karagöz, hard run + sloppy first Worker** (fault injection, 2 refactor rounds) | — | $1.97 · 30/30 | **$1.85** · 30/30 |
-| **Hacivat** — planning a 6-step plan, critic panel included | $3.35 | $3.08 | HACIVAT13 |
+| **Hacivat** — planning a 6-step plan, critic panel included | $3.35 | $3.08 | **$2.71** |
 
 **Why 1.2 is cheaper despite running everything on Opus:** Opus 5.5 at medium effort finishes in fewer turns; the Coordinator — 30–40% of the execution bill — got thinner (plugin agents instead of prompt templates re-typed on every call, rare paths loaded on demand); and the critic panel's later rounds verify earlier objections instead of reviewing the whole plan afresh. Without that last change, Opus critics raised a new crop of major objections every round and planning cost $5.18.
 
