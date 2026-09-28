@@ -6,6 +6,7 @@
 cd plugins/karakam/evals/bench
 python3 run.py karagoz --label <name> --runs 3                      # clean run: fixed 3-step plan
 python3 run.py karagoz --scenario refactor --label <name> --runs 3  # hard run: forces refactor rounds
+python3 run.py karagoz --scenario fifo --label <name> --max-ticks 10 # large run: 6 steps, tricky rules
 python3 run.py hacivat --label <name> --runs 2                      # plan the fixed brief
 python3 run.py report                                               # compare every label
 
@@ -29,6 +30,7 @@ Each run snapshots the plugin at launch (`results/<mode>/<label>/plugin/`), so y
   - step 02 adds a required `kategori` field and a new CSV header, but its `files_touched` leaves out `tests/test_rapor.py`, which still writes v1 CSVs. Its criteria (whole suite green *and* v1 header rejected) can't both hold without that file, so the step fails deterministically until the Coordinator recognises a single-step spec fault and widens `files_touched` (Karagöz's "whose fault" path) — or marks it blocked;
   - step 01 is labelled `effort: low`, but its rules interact: Turkish casing (`I↔ı`, `İ↔i`) defeats `str.lower()`, decomposed (NFD) input — as macOS exports it — has to be normalized *before* the Turkish mapping or a decomposed `İ` turns into `ı`, and matching is accent-sensitive, so the common "NFKD and strip the marks" recipe is wrong too. The Observer checks name the rules but give no examples. The hidden tests fail each of those four wrong implementations.
   The report shows, per step, the Workers it took (`low→medium` …), spec edits, and the ledger notes; the hidden tests show whether the product ended up right.
+- **karagoz --scenario fifo** is the large one: the same v1 codebase gets stock movements with FIFO costing — six steps (`karagoz-fifo/plan/`), two parallel batches, two critical steps, run with `--max-ticks 10`. The plan has no planted fault; its difficulty is rules that each have a tempting shortcut: ASCII-only, zero-padded dates (`\d` and `int()` accept other digits); customer returns that bring back the *last-consumed* units as separate lots, only against the latest issue; same-day order by file line; strict number formats (`Decimal()` accepts `NaN`, exponents and spaces); totals rounded once from exact sums; reports that process movements only up to their cut-off date; CLI errors that name the file. The plan states every rule and the Observer checks name them without examples; the 57 hidden tests fail each shortcut (checked by mutating a reference solution).
 - **hacivat** plans `hacivat/brief.md` (a small URL shortener) with no clarifying questions and no approval wait.
 
 `by_role` splits the cost into the main session (Coordinator or Hacivat), workers, observers and critics, read from the transcripts Claude Code keeps under `~/.claude/projects/`. The main session's first turn pays a one-hour cache write for its whole prefix; subagents write five-minute caches.
