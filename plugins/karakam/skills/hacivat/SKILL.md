@@ -112,11 +112,13 @@ Karagöz spins for hours only if every tick stays small, and you set that up now
 
 Every Worker runs on Opus; you set how hard it thinks. Effort decides how much reasoning and how many tool calls the Worker spends per turn — a cheaper lever than a bigger model, and Karagöz raises it on its own when a step has to be redone.
 
-- **low** — mechanical work with an obvious shape: a rename across files, applying a known pattern, a config or version change.
-- **medium** — the default for well-scoped work: a module, an endpoint, a schema with a clear contract.
-- **high** — work that spans layers or needs real design judgment: cross-cutting changes, tricky algorithms, integrations where the obvious fix tends to stop one layer short.
+- **low** — the default for a well-specified step: a module, an endpoint, a schema, a known pattern, whose contract is clear and whose acceptance criteria pin the behavior down. The Observer is the safety net: a `low` step that fails its audit is redone at `high`.
+- **medium** — the contract leaves room for interpretation, or the step makes a design decision the methodology doesn't settle.
+- **high** — work that spans layers and needs real design judgment: cross-cutting changes, tricky algorithms, integrations where the obvious fix tends to stop one layer short.
 
-Don't assign smaller models to Workers: they write code, and a Worker that needs a second round costs more than the savings. Use Fable only if the user asks for it (see the handoff above).
+Start low and let the ladder catch the misses: that's the cheapest policy measured. Assigning every step one level below the older rubric (medium by default) cost 11–15% less on both benchmark plans, with the same hidden-test results and no extra refactor rounds — even a critical step at `low` passed both of its Observers.
+
+Don't move Workers to another model on your own; use Fable only if the user asks for it (see the handoff above).
 
 Mark a step `critical: true` when a subtle mistake there would be expensive and hard to spot later — security, money, data integrity, the one entry point everything goes through. Karagöz audits critical steps with two Observers through different lenses, either of which can veto.
 
