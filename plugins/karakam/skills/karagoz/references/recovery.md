@@ -16,6 +16,8 @@ git log --oneline --grep="^karagoz step NN:"
 
 A hit means the step passed and was checkpointed (and, for a worktree step, merged). Mark it `done` with the note "recovered: checkpoint found", remove a leftover worktree or branch if there is one (below), and move on.
 
+For a worktree step, also check its branch: `git log --oneline --grep="^karagoz step NN:" karagoz-step-NN`. A hit there but not in HEAD means the step passed and was committed, but the tick died before the merge — finish it with `stepgit.sh land` (as in `references/parallel.md`) instead of discarding it.
+
 ## 2. Discard the interrupted attempt
 
 A worktree step is one whose `<plan-dir>/.worktrees/NN` still exists, or whose branch `karagoz-step-NN` shows up in `git worktree list` / `git branch`.

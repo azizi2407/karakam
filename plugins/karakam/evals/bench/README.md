@@ -64,3 +64,14 @@ The default scenario's plan is deliberately well specified — no version measur
 - **`low→high` recovers for less than `low→medium` did.** With the sloppy `worker-low`, the second Worker ran at `high` and passed both times; the recovery added about $0.20 over the plain hard run, against about $0.30 for 1.2's one-level step. The spec-fault round still ran at the step's own effort (`medium→medium`, `low→low`), as it should.
 - **Sonnet 5.5 Workers matched Opus here.** 30/30 in both runs, Worker spend $0.15–0.19 against $0.44–0.50 for Opus at the same efforts. Observers stayed on Opus. Two runs on one small task; the plugin's default is still Opus.
 - **Hacivat applies the new rubric.** Planning the brief cost $2.71 (2 runs) and produced 5-step plans with 3–4 steps at `low` and the critical or interpretive ones at `medium`.
+
+### Large plan: `fifo`, Opus vs Sonnet 5.5 Workers (1.3, 3 runs each)
+
+| Workers | cost per run | hidden tests | refactor rounds | Worker spend | wall |
+|---|---|---|---|---|---|
+| Opus (plugin default) | $3.32 · $3.45 · $5.32 | 57/57 in 3 of 3 | 0 · 0 · 2 | $1.12–1.69 | 8.7–13.8 min |
+| Sonnet 5.5 (`--worker-model sonnet`) | $2.67 · $3.40 · $2.63 | 57/57 in 3 of 3 | 0 · 1 · 0 | $0.40–0.52 | 6.7–8.4 min |
+
+- **Both got every rule right.** No run of either failed a hidden test; the Observers (Opus in both arms) sent back one step in two runs — the same step 06 edge case (`--ay 0000-01` crashed instead of reporting an invalid month) with each model. Sonnet Workers wrote fewer tests of their own (100–113 against 135–152 in the final suite).
+- **The Opus arm's $5.32 run lost a step to a git failure, not to the model.** Step 02 passed both critical Observers, but its worktree commit hit a signing timeout; the Coordinator had chained commit, merge and `worktree remove --force` without checking each result, so the passed work was deleted and the step re-run. That's what `stepgit.sh land` now prevents. Without it the arms are $3.32–3.45 (Opus) against $2.63–2.67 (Sonnet) for clean runs.
+- **What this doesn't show:** a task hard enough that the Worker model changes the outcome. Both scenarios are well-specified plans with a strong Observer; on them Sonnet 5.5 Workers cost 20–30% less per run at the same result.
