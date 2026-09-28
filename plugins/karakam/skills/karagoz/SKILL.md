@@ -43,7 +43,7 @@ Read `<plan-dir>/progress.md`.
 
 - A row still `in_progress` or `refactoring` means the tick that owned it died. Follow `references/recovery.md` for each such step before anything else.
 - **Eligible** = `pending` and every `depends_on` step `done`. None eligible → **End of loop**.
-- A `pending` row whose note carries `refactor r/3 @<effort>` was interrupted mid-refactor: its next Worker runs at that effort and the round count carries on from `r`.
+- A `pending` row whose note carries `refactor r/3 @<worker>` was interrupted mid-refactor: its next Worker is `karakam:worker-<worker>` (e.g. `@opus-high`) and the round count carries on from `r`. A note from an older version names a bare effort (`@medium`, `@high`): resume at `opus-high`, or `opus-xhigh` for `@xhigh`.
 - The row gives you `effort` and `critical`. A plan from before `effort` existed has a `model` column instead: read `opus` / `sonnet` / `haiku` as `high` / `medium` / `low`. If a row has neither, fill both columns once from the step files and carry on.
 
 ### 2. Send the Workers
@@ -53,9 +53,9 @@ Read `<plan-dir>/progress.md`.
 
 Mark the batch `in_progress` in one edit, then spawn — all Workers of a batch in a single message:
 
-- **Agent:** `karakam:worker-<effort>` — the step's effort: `low`, `medium` or `high`.
+- **Agent:** `karakam:worker-<effort>` — Sonnet at the step's effort: `low`, `medium` or `high`.
 - **Message:** the project root (or the step's worktree path), the step file path, and the plan directory. That's all — the step file carries the task and the agent definition carries the protocol. Give the step file and plan directory as absolute paths in the main tree, even for a worktree step: the worktree's copy of the plan is a snapshot from when it branched, without the live ledger or any spec fix since, and logs written there vanish with the worktree.
-- **Model:** the agent definition sets it. Don't override it — pass `model: fable` only when the user has explicitly asked for Fable in this run.
+- **Model:** the agent definition sets it. Don't override it — pass `model: fable` only when the user has explicitly asked for Fable in this run (then on every Worker, refactor rounds included).
 
 A Worker or Observer call that returns nothing or errors out is a `FAIL: agent call did not return` and goes through step 4 like any other failure, not a silent retry.
 
@@ -72,8 +72,8 @@ Audit each step once its Worker has returned — the Observers of a whole batch 
 - **PASS** → checkpoint first, then mark it `done` with a one-line note. A step that ran in the project root is committed there: `stepgit.sh commit "karagoz step NN: <title>" <files_touched>`; a worktree step is landed from the project root with `stepgit.sh land` — commit in its worktree, merge, clean up (`references/parallel.md`). In a non-git project there is nothing to checkpoint. The order matters: recovery and blocked-step cleanup revert a step's files to HEAD, and parallel worktrees branch from HEAD, so a step marked `done` before its commit lands could be silently destroyed or be invisible to the next batch; with the commit first, a crash in between is recognisable from the commit message (see `references/recovery.md`).
   - If the commit itself fails (a failing hook, no git identity — `stepgit.sh` has already retried once), the step passed but isn't checkpointed, and every later step would hit the same wall. Mark it `blocked` with the git error in the note, leave its files as they are, and end the loop, telling the user what to fix.
 - **FAIL** → if the Worker followed the spec and the spec itself looks wrong (the Observer's evidence contradicts the spec, or the two critical Observers disagree), follow `references/failure.md` before refactoring. Otherwise refactor within the step:
-  - Mark it `refactoring` with the round and effort in the note, e.g. `refactor 1/3 @high` — the note is the only place a later tick can see how many rounds are spent. Keep any `recovered Nx` already in the note.
-  - Each round, send a new Worker at `high` — or at `xhigh` if the previous round already ran at `high` or above — with the Observer's findings or report path in its message. Then audit again. The second attempt at `high` buys most of what a retry can; `xhigh` costs far more for little extra, so it's only the last resort.
+  - Mark it `refactoring` with the round and Worker in the note, e.g. `refactor 1/3 @opus-high` — the note is the only place a later tick can see how many rounds are spent. Keep any `recovered Nx` already in the note.
+  - The first refactor round goes to `karakam:worker-opus-high`, later ones to `karakam:worker-opus-xhigh`, each with the Observer's findings or report path in its message. Then audit again. A step the Sonnet Worker couldn't get right gets a stronger model on the retry, not just more thinking from the same one.
   - If a round changed only a plan or doc file and no code, re-run only the Observer lens that objected.
   - At most three rounds. PASS → as above. Still FAIL → mark it `blocked`, clean up per `references/failure.md`, and continue: its dependents wait, independent steps carry on next tick.
 

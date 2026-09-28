@@ -36,6 +36,6 @@ A worktree step is one whose `<plan-dir>/.worktrees/NN` still exists, or whose b
 
 ## 3. Put it back in the queue — with a limit
 
-Set the step to `pending`. Keep whatever the note already says about refactor rounds (`refactor 2/3 @high`), so the next attempt resumes at that effort and round instead of starting over, and add or increment a crash count: `recovered 1x`, `recovered 2x`, …
+Set the step to `pending`. Keep whatever the note already says about refactor rounds (`refactor 2/3 @opus-xhigh`), so the next attempt resumes with that Worker and round instead of starting over, and add or increment a crash count: `recovered 1x`, `recovered 2x`, …
 
 A step whose tick dies a third time is not going to finish this way — usually it's too big for one tick, or it wedges a tool. Mark it `blocked` with "keeps crashing its tick (recovered 3x)" instead, and let independent work carry on.

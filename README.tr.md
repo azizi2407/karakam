@@ -62,10 +62,10 @@ Dört rol:
 | **Kurgucu (Hacivat)** | Netleştir → planla → eleştiri paneli → tırmanış → devir dosyaları. Seninle konuşan taraf. | Senin oturumun (Opus) |
 | **Eleştirmen** | Planı dört mercekten biriyle inceler. | `karakam:critic` — Opus, medium effort |
 | **Koordinatör (Karagöz)** | Bir tick = o an koşulabilen adım(lar)ın `done` olması. Onları seçer, Worker'ları gönderir, Observer'ları çağırır, defteri günceller. Kod yazmaz. | Senin oturumun (Opus, medium effort) |
-| **Worker** | Bir adımı test-first mantığıyla yürütür. Kısa bir log yazar. | `karakam:worker-<effort>` — Opus, Hacivat'ın adıma verdiği effort ile |
+| **Worker** | Bir adımı test-first mantığıyla yürütür. Kısa bir log yazar. | `karakam:worker-<effort>` — Sonnet 5.5, Hacivat'ın adıma verdiği effort ile (varsayılan `high`); refactor turları: önce `worker-opus-high`, sonra `worker-opus-xhigh` |
 | **Observer** | Adımı düşmanca denetler — kontrolleri kendisi çalıştırır, çürütmeye çalışır. | `karakam:observer-medium`; kritik adımlarda iki `observer-high` |
 
-Her alt-ajan bir plugin agent'ı (`plugins/karakam/agents/`): protokolü, araçları, modeli ve effort'u tanımında durur; Koordinatör bunları her çağrıda yeniden yazmaz. Kod yazma ve denetim Opus'ta koşar, maliyet kaldıracı **effort**: Hacivat iyi tanımlanmış adımları `low`'dan başlatır, kaçanı Observer yakalar. Bir adım denetimden geçemezse sonraki tur doğrudan `high`'a, ancak ondan sonra `xhigh`'a çıkar (`low → high → xhigh`) — tekrar denemenin karşılığı `high`'daki ikinci denemede alınır. Fable, sen istemedikçe hiç kullanılmaz.
+Her alt-ajan bir plugin agent'ı (`plugins/karakam/agents/`): protokolü, araçları, modeli ve effort'u tanımında durur; Koordinatör bunları her çağrıda yeniden yazmaz. Worker'lar kodu Sonnet 5.5'te, adım mekanik değilse `high` effort'ta yazar; onları denetleyen Observer'lar, eleştirmenler ve Koordinatör Opus'ta koşar. Bir adım denetimden geçemezse tekrar deneme yalnızca daha çok düşünmekle kalmaz, daha güçlü bir modele gider: önce `high`'da, sonra `xhigh`'da bir Opus Worker. Fable, sen istemedikçe hiç kullanılmaz.
 
 İki yarı arasındaki devir dört dosyadan oluşur:
 
@@ -141,7 +141,7 @@ Bunlar küçük, sabit görevler — göreli maliyeti ve toparlanmanın çalış
 
 ## Gereksinimler
 
-- Alt-ajan (Agent tool) erişimi olan Claude Code ve Opus. Fable yalnızca sen istersen kullanılır.
+- Alt-ajan (Agent tool) erişimi olan Claude Code, Opus ve Sonnet. Fable yalnızca sen istersen kullanılır.
 - Sunucuda uzun otonom koşular için `tmux`/`screen` içinde çalıştır — `/loop` oturumda yaşar ve SSH bağlantın kesildiğinde o da ölür.
 
 ## Dil

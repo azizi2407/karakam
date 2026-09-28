@@ -12,7 +12,7 @@ Sometimes the step definition itself orders the wrong thing: the Worker follows 
 
 Handing the same broken spec to another Worker, at any effort, produces the same result and burns a round. Instead:
 
-- **Within one step you may fix the spec.** Edit the faulty instruction in `steps/NN.md` minimally, grounded in the evidence, then send the refactor Worker at the step's own effort (the problem was the spec, not the effort). Record the fix in the `progress.md` note — the plan never changes silently.
+- **Within one step you may fix the spec.** Edit the faulty instruction in `steps/NN.md` minimally, grounded in the evidence, then send the refactor round to the step's own Worker, `karakam:worker-<effort>` (the problem was the spec, not the Worker). Record the fix in the `progress.md` note — the plan never changes silently.
 - **If the fix widens `files_touched` inside a parallel batch**, check the new list against the other steps of the batch. If it now overlaps one that hasn't merged yet, the two would edit the same file in separate worktrees: don't refactor this tick — discard this step's worktree, set it back to `pending` with the fix noted, and add the other step to its `depends_on` (in the ledger and the step file). It runs after that one merges.
 - **Beyond one step you stop.** If the fault spans several steps, a core decision in `methodology.md` is wrong, or the architecture has to change, don't rewrite the plan: mark the step `blocked` with the note "plan-level fault: <summary>" and carry on with independent work. The end-of-loop summary tells the user that Hacivat needs to run again.
 

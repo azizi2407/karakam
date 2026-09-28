@@ -94,10 +94,23 @@ def inject_fault(plugin, agent):
 
 
 def use_worker_model(plugin, model):
-    """Run every Worker on another model (Observers and critics stay on Opus)."""
+    """Run the first-pass Workers on another model (refactor-round Workers,
+    Observers and critics keep theirs)."""
     for f in (plugin / "agents").glob("worker-*.md"):
-        f.write_text(f.read_text(encoding="utf-8").replace("\nmodel: opus\n", f"\nmodel: {model}\n", 1),
-                     encoding="utf-8")
+        if not f.name.startswith("worker-opus-"):
+            f.write_text(re.sub(r"\nmodel: \w+\n", f"\nmodel: {model}\n",
+                                f.read_text(encoding="utf-8"), count=1), encoding="utf-8")
+
+
+def set_efforts(plan, level):
+    """A/B: every step at one effort level."""
+    prog = plan / "progress.md"
+    prog.write_text(re.sub(r"^(\|[^|]*\|[^|]*\|[^|]*\|)\s*(low|medium|high)\s*\|",
+                           lambda m: f"{m.group(1)} {level} |",
+                           prog.read_text(encoding="utf-8"), flags=re.M), encoding="utf-8")
+    for step in (plan / "steps").glob("*.md"):
+        step.write_text(re.sub(r"(## Effort\neffort: )(low|medium|high)", lambda m: m.group(1) + level,
+                               step.read_text(encoding="utf-8")), encoding="utf-8")
 
 
 def shift_efforts_down(plan):
@@ -168,7 +181,7 @@ def pytest_counts(proj, target):
     return {"passed": passed, "failed": failed, "tail": tail}
 
 
-def run_karagoz(run_dir, plugin, model, max_ticks, scen, legacy, shift=False):
+def run_karagoz(run_dir, plugin, model, max_ticks, scen, legacy, shift=False, level=None):
     proj = run_dir / "proj"
     if (scen / "base").exists():
         shutil.copytree(scen / "base", proj, ignore=shutil.ignore_patterns("__pycache__"))
@@ -177,6 +190,8 @@ def run_karagoz(run_dir, plugin, model, max_ticks, scen, legacy, shift=False):
         to_legacy_plan(proj / "plan")
     if shift:
         shift_efforts_down(proj / "plan")
+    if level:
+        set_efforts(proj / "plan", level)
     (proj / "plan" / "logs").mkdir(exist_ok=True)
     (proj / "plan" / "reports").mkdir(exist_ok=True)
     for c in ("git init -q .", "git config user.email bench@example.com",
@@ -340,7 +355,8 @@ def agent_list(proj):
     return sorted(out, key=lambda a: a["t"] or "")
 
 
-def one(mode, label, i, model, max_ticks, scenario="stokcu", legacy=False, ref=None, shift=False):
+def one(mode, label, i, model, max_ticks, scenario="stokcu", legacy=False, ref=None, shift=False,
+        level=None):
     group = group_name(mode, scenario)
     run_dir = RESULTS / group / label / f"run-{i}"
     if run_dir.exists():
@@ -348,7 +364,7 @@ def one(mode, label, i, model, max_ticks, scenario="stokcu", legacy=False, ref=N
     run_dir.mkdir(parents=True)
     plugin = snapshot_plugin(RESULTS / group / label / "plugin", ref)
     t0 = time.time()
-    res = run_karagoz(run_dir, plugin, model, max_ticks, SCENARIOS[scenario], legacy, shift) \
+    res = run_karagoz(run_dir, plugin, model, max_ticks, SCENARIOS[scenario], legacy, shift, level) \
         if mode == "karagoz" else run_hacivat(run_dir, plugin, model)
     res["wall_total_s"] = round(time.time() - t0, 1)
     res["by_model"] = model_costs(run_dir)
@@ -423,8 +439,11 @@ def main():
                     help="main-session effort (the handoff pins medium)")
     ap.add_argument("--effort-shift-down", action="store_true",
                     help="karagoz only: run every step one effort level lower (A/B)")
+    ap.add_argument("--step-effort", choices=["low", "medium", "high"],
+                    help="karagoz only: run every step at this effort (A/B)")
     ap.add_argument("--worker-model", metavar="MODEL",
-                    help="run the Workers on this model instead of opus (e.g. sonnet)")
+                    help="run the first-pass Workers on this model (e.g. opus); "
+                         "refactor-round Workers keep theirs")
     ap.add_argument("--legacy-plan", action="store_true",
                     help="karagoz only: convert the plan to the pre-1.2 model-column contract")
     a = ap.parse_args()
@@ -449,7 +468,8 @@ def main():
         use_worker_model(plugin, a.worker_model)
     with ThreadPoolExecutor(a.runs) as ex:
         list(ex.map(lambda i: one(a.mode, a.label, i, a.model, a.max_ticks,
-                                  a.scenario, a.legacy_plan, a.plugin_ref, a.effort_shift_down),
+                                  a.scenario, a.legacy_plan, a.plugin_ref, a.effort_shift_down,
+                                  a.step_effort),
                     range(1, a.runs + 1)))
     report()
 

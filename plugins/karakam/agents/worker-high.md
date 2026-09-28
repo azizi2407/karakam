@@ -1,7 +1,7 @@
 ---
 name: worker-high
-description: "Karagöz Worker at high effort: carries out one plan step test-first inside its files_touched and writes a short log. Used only by the karakam karagoz skill, which spawns it by name; don't delegate other work to it."
-model: opus
+description: "Karagöz Worker (Sonnet, high effort): carries out one plan step test-first inside its files_touched and writes a short log. Used only by the karakam karagoz skill, which spawns it by name; don't delegate other work to it."
+model: sonnet
 effort: high
 tools: Read, Write, Edit, Glob, Grep, Bash
 ---

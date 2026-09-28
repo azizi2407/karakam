@@ -62,10 +62,10 @@ Four roles:
 | **Creator (Hacivat)** | Clarify → plan → critic panel → hill-climb → handoff files. Talks to you. | Your session (Opus) |
 | **Critic** | Reviews the plan through one of four lenses. | `karakam:critic` — Opus, medium effort |
 | **Coordinator (Karagöz)** | One tick = the currently runnable step(s) to `done`. Picks them, sends the Workers, calls the Observers, updates the ledger. Writes no code. | Your session (Opus, medium effort) |
-| **Worker** | Executes one step, test-first. Writes a short log. | `karakam:worker-<effort>` — Opus, at the effort Hacivat set for the step |
+| **Worker** | Executes one step, test-first. Writes a short log. | `karakam:worker-<effort>` — Sonnet 5.5, at the effort Hacivat set for the step (`high` by default); refactor rounds: `worker-opus-high`, then `worker-opus-xhigh` |
 | **Observer** | Audits the step adversarially — runs the checks itself, tries to refute it. | `karakam:observer-medium`; two `observer-high` on critical steps |
 
-Every sub-agent is a plugin agent (`plugins/karakam/agents/`), so its protocol, tools, model and effort live in its definition rather than being re-typed by the Coordinator on every call. Code-writing and auditing run on Opus, and the cost lever is **effort**: Hacivat starts well-specified steps at `low` and lets the Observer catch the misses. When a step fails its audit, the next round goes straight to `high`, and to `xhigh` only after that (`low → high → xhigh`) — the second attempt at `high` is where a retry pays off. Fable is never used unless you ask for it.
+Every sub-agent is a plugin agent (`plugins/karakam/agents/`), so its protocol, tools, model and effort live in its definition rather than being re-typed by the Coordinator on every call. Workers write code on Sonnet 5.5, at `high` effort unless a step is mechanical; the Observers that audit them, the critics and the Coordinator run on Opus. When a step fails its audit, the retry goes to a stronger model, not just more thinking: an Opus Worker at `high`, then at `xhigh`. Fable is never used unless you ask for it.
 
 The handoff between the halves is four files:
 
@@ -141,7 +141,7 @@ These are small, fixed tasks — they show relative cost and whether recovery wo
 
 ## Requirements
 
-- Claude Code with sub-agent (Agent tool) access and Opus. Fable is used only if you ask for it.
+- Claude Code with sub-agent (Agent tool) access, Opus and Sonnet. Fable is used only if you ask for it.
 - For long autonomous runs on a server, run inside `tmux`/`screen` — `/loop` lives in the session, and it dies with your SSH connection.
 
 ## Language
