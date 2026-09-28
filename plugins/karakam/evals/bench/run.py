@@ -37,7 +37,8 @@ REPO = HERE.parents[3]
 RESULTS = HERE / "results"
 # karagoz scenarios: <dir>/plan (+ optional <dir>/base, the codebase the plan
 # starts from) and <dir>/hidden/test_hidden.py
-SCENARIOS = {"stokcu": HERE / "karagoz", "refactor": HERE / "karagoz-refactor"}
+SCENARIOS = {"stokcu": HERE / "karagoz", "refactor": HERE / "karagoz-refactor",
+             "fifo": HERE / "karagoz-fifo"}
 LEGACY_MODEL = {"low": "haiku", "medium": "sonnet", "high": "opus"}
 SHIFT_DOWN = {"low": "low", "medium": "low", "high": "medium"}
 # set from the command line: main-session effort, as the handoff pins it

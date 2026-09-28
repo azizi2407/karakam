@@ -16,7 +16,8 @@ Checks:
     table rows);
   - every eval case.yaml parses;
   - karagoz's scripts/stepgit.sh commits and reverts exactly a step's files,
-    including new, deleted and never-existing paths.
+    including new, deleted and never-existing paths, and `land` never discards
+    a worktree whose commit or merge failed.
 """
 import json
 import subprocess
@@ -173,6 +174,38 @@ with tempfile.TemporaryDirectory() as repo:
     r = run("commit", "failing", "mod.txt")
     if r.returncode == 0 or git(repo, "diff", "--cached", "--name-only").stdout.strip():
         err("stepgit.sh commit should fail cleanly (nothing left staged) when the commit is rejected")
+
+    git(repo, "checkout", "-q", "--", "mod.txt")
+
+    # land: success, failing commit (worktree kept), conflict (aborted, kept)
+    hook.unlink()
+    def worktree(n, name, text):
+        wt = str(Path(repo, ".worktrees", n))
+        git(repo, "worktree", "add", "-q", wt, "-b", f"karagoz-step-{n}")
+        write(wt, name, text)
+        return wt
+    Path(repo, ".git", "info", "exclude").write_text(".worktrees/\n")
+    wt = worktree("02", "w2.txt", "two\n")
+    r = run("land", wt, "karagoz-step-02", "karagoz step 02: land", "w2.txt")
+    if r.returncode or Path(wt).exists() or Path(repo, "w2.txt").read_text() != "two\n" \
+            or "karagoz step 02" not in git(repo, "log", "-1", "--format=%s").stdout:
+        err(f"stepgit.sh land should commit, merge and clean up: exit {r.returncode}, {r.stderr.strip()}")
+
+    wt = worktree("03", "w3.txt", "three\n")
+    hook.write_text("#!/bin/sh\nexit 1\n")
+    hook.chmod(0o755)
+    r = run("land", wt, "karagoz-step-03", "karagoz step 03: land", "w3.txt")
+    hook.unlink()
+    if r.returncode != 1 or not Path(wt, "w3.txt").exists() or Path(repo, "w3.txt").exists():
+        err(f"stepgit.sh land must keep the worktree when the commit fails: exit {r.returncode}")
+
+    wt = worktree("04", "mod.txt", "theirs\n")
+    write(repo, "mod.txt", "ours\n")
+    run("commit", "main edit", "mod.txt")
+    r = run("land", wt, "karagoz-step-04", "karagoz step 04: land", "mod.txt")
+    if r.returncode != 2 or not Path(wt).exists() or Path(repo, ".git", "MERGE_HEAD").exists() \
+            or Path(repo, "mod.txt").read_text() != "ours\n":
+        err(f"stepgit.sh land must abort a conflicting merge and keep the worktree: exit {r.returncode}")
 
 if errors:
     print("\n".join(f"✗ {e}" for e in errors))
