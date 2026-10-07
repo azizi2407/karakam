@@ -6,21 +6,25 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { KarakamMicro, KarakamStep } from '../types'
-import { classifySpawn, duration, gitStep, parseLedger, verdict } from './ledger'
+import { classifySpawn, duration, gitStep, openDeps, parseLedger, stateOf, verdict } from './ledger'
+import type { StepState } from './ledger'
 
 const PANE = 'karakam'
 const ledger = atom({ plugin: 'karakam', key: 'ledger' } as const, null)
 const micro = atom({ plugin: 'karakam', key: 'micro' } as const, [])
 
 type Look = { icon: string; color?: string; dim?: boolean }
-const PENDING: Look = { icon: '·', dim: true }
-const STEP_LOOK: Record<string, Look> = {
+// One glyph per step state, shared by the step map and the step rows.
+const LOOK: Record<StepState, Look> = {
   done: { icon: '✓', color: 'success' },
-  in_progress: { icon: '▶', color: 'warning' },
+  running: { icon: '▶', color: 'warning' },
   refactoring: { icon: '↻', color: 'warning' },
   blocked: { icon: '✗', color: 'error' },
-  pending: PENDING,
+  ready: { icon: '○', color: 'suggestion' },
+  waiting: { icon: '·', dim: true },
 }
+const ORDER: StepState[] = ['done', 'running', 'refactoring', 'ready', 'waiting', 'blocked']
+const PER_ROW = 10
 const MICRO_LOOK: Record<KarakamMicro['status'], { icon: string; color: string }> = {
   running: { icon: '…', color: 'warning' },
   pass: { icon: '✓', color: 'success' },
@@ -116,19 +120,22 @@ export const register: Register = on => {
     const runs = await read($, micro)
     const steps: KarakamStep[] = plan?.steps ?? []
     const ids = [...new Set([...steps.map(s => s.id), ...runs.map(m => m.step)])].sort()
-    const width = Math.max(10, e.props.bodyColumns)
 
     if (ids.length === 0) {
       return <Text dimColor>Waiting for karagoz to read its plan…</Text>
     }
 
-    const count = (status: string) => steps.filter(s => s.status === status).length
-    const done = count('done')
-    const total = steps.length || ids.length
-    const barWidth = Math.max(4, Math.min(30, width - 24))
-    const filled = Math.round((done / Math.max(1, total)) * barWidth)
-    const active = count('in_progress') + count('refactoring')
-    const blocked = count('blocked')
+    // A step known only from a running micro-step (no ledger read yet) counts as running.
+    const stateById = new Map<string, StepState>(
+      ids.map(id => {
+        const step = steps.find(s => s.id === id)
+        return [id, step ? stateOf(step, steps) : 'running']
+      }),
+    )
+    const rows: string[][] = []
+    for (let i = 0; i < ids.length; i += PER_ROW) rows.push(ids.slice(i, i + PER_ROW))
+    const tally = ORDER.map(st => [st, [...stateById.values()].filter(v => v === st).length] as const)
+      .filter(([, n]) => n > 0)
 
     return (
       <Box flexDirection="column">
@@ -137,21 +144,34 @@ export const register: Register = on => {
             {plan.path}
           </Text>
         )}
+        {rows.map(row => (
+          <Text wrap="truncate">
+            <Text dimColor>{row[0]} </Text>
+            {row.map(id => {
+              const look = LOOK[stateById.get(id) ?? 'waiting']
+              return <Text color={look.color} dimColor={look.dim}> {look.icon}</Text>
+            })}
+          </Text>
+        ))}
         <Text wrap="truncate">
-          <Text color="success">{'█'.repeat(filled)}</Text>
-          <Text dimColor>{'░'.repeat(barWidth - filled)}</Text> {done}/{total} done
-          {active > 0 ? ` · ${active} running` : ''}
-          {blocked > 0 ? ` · ${blocked} blocked` : ''}
+          {tally.map(([st, n], i) => (
+            <Text>
+              {i > 0 ? '  ' : ''}
+              <Text color={LOOK[st].color} dimColor={LOOK[st].dim}>{LOOK[st].icon}</Text> {n} {st}
+            </Text>
+          ))}
         </Text>
         {ids.map(id => {
           const step = steps.find(s => s.id === id)
-          const look = STEP_LOOK[step?.status ?? 'pending'] ?? PENDING
+          const look = LOOK[stateById.get(id) ?? 'waiting']
+          const waitsOn = step ? openDeps(step, steps) : []
           const mine = runs.filter(m => m.step === id)
           return (
             <Box flexDirection="column" marginTop={1}>
               <Text wrap="truncate" dimColor={look.dim}>
-                <Text color={look.color}>{look.icon}</Text> <Text bold>{id}</Text> {step?.status ?? 'running'}
+                <Text color={look.color}>{look.icon}</Text> <Text bold>{id}</Text> {stateById.get(id)}
                 {step ? <Text dimColor> · {step.effort}{step.critical ? ' · critical' : ''}</Text> : ''}
+                {waitsOn.length > 0 ? <Text dimColor> · waits on {waitsOn.join(', ')}</Text> : ''}
                 {step?.note ? <Text dimColor> — {step.note}</Text> : ''}
               </Text>
               {mine.map((m, i) => {

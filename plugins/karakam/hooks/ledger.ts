@@ -16,6 +16,7 @@ export function parseLedger(text: string): KarakamStep[] {
     steps.push({
       id,
       status: cells[0] ?? '',
+      dependsOn: (cells[1] ?? '').split(/[\s,]+/).filter(d => /^\d+$/.test(d)).map(d => d.padStart(2, '0')),
       effort: cells[2] ?? '',
       critical: /^(yes|true)$/i.test(cells[3] ?? ''),
       note: cells.length > 5 ? cells.slice(5).join(' | ') : '',
@@ -73,4 +74,23 @@ export function gitStep(command: string): Pick<KarakamMicro, 'step' | 'kind' | '
 export function duration(ms: number): string {
   const s = Math.max(0, Math.round(ms / 1000))
   return s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`
+}
+
+/** Where a step stands in the dependency graph, not just its ledger status. */
+export type StepState = 'done' | 'running' | 'refactoring' | 'blocked' | 'ready' | 'waiting'
+
+/** A pending step is `ready` once every step it depends on is done, else `waiting`. */
+export function stateOf(step: KarakamStep, steps: readonly KarakamStep[]): StepState {
+  switch (step.status) {
+    case 'done': return 'done'
+    case 'in_progress': return 'running'
+    case 'refactoring': return 'refactoring'
+    case 'blocked': return 'blocked'
+  }
+  return openDeps(step, steps).length === 0 ? 'ready' : 'waiting'
+}
+
+/** The steps this one still waits for. */
+export function openDeps(step: KarakamStep, steps: readonly KarakamStep[]): string[] {
+  return step.dependsOn.filter(d => steps.find(s => s.id === d)?.status !== 'done')
 }
