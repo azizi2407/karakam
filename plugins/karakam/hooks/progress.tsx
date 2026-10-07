@@ -2,6 +2,10 @@
 // step its micro-steps — every Worker and Observer run and the git checkpoint —
 // as the Coordinator spawns them. Opens when the karagoz skill starts;
 // `/karakam-progress` opens it by hand.
+//
+// Compact by default: a narrow dock on the right of a fullscreen transcript,
+// its content at the top — a one-line step map, the tally, and only the steps
+// in motion. `d` (or the button) toggles the full list of every step.
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
@@ -12,6 +16,7 @@ import type { StepState } from './ledger'
 const PANE = 'karakam'
 const ledger = atom({ plugin: 'karakam', key: 'ledger' } as const, null)
 const micro = atom({ plugin: 'karakam', key: 'micro' } as const, [])
+const isExpanded = atom({ plugin: 'karakam', key: 'isExpanded' } as const, false)
 
 type Look = { icon: string; color?: string; dim?: boolean }
 // One glyph per step state, shared by the step map and the step rows.
@@ -25,6 +30,8 @@ const LOOK: Record<StepState, Look> = {
 }
 const ORDER: StepState[] = ['done', 'running', 'refactoring', 'ready', 'waiting', 'blocked']
 const PER_ROW = 10
+// Body columns asked of the dock, and rows of the inline block, per view.
+const SIZE = { compact: { columns: 30, rows: 7 }, expanded: { columns: 72, rows: 24 } }
 const MICRO_LOOK: Record<KarakamMicro['status'], { icon: string; color: string }> = {
   running: { icon: '…', color: 'warning' },
   pass: { icon: '✓', color: 'success' },
@@ -32,7 +39,8 @@ const MICRO_LOOK: Record<KarakamMicro['status'], { icon: string; color: string }
   fail: { icon: '✗', color: 'error' },
 }
 
-const openPane = ($: EngineInterface) => $.ui.open({ id: PANE, title: 'Karagöz' })
+const openPane = async ($: EngineInterface) =>
+  $.ui.open({ id: PANE, title: 'Karagöz', ...SIZE[(await read($, isExpanded)) ? 'expanded' : 'compact'] })
 const isLedgerPath = (path: string) => /(^|\/)progress\.md$/.test(path)
 
 export const register: Register = on => {
@@ -115,7 +123,8 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const { Box, Text } = $.ui.resolve(e)
+    const { Box, Button, Text } = $.ui.resolve(e)
+    const expanded = await read($, isExpanded)
     const plan = await read($, ledger)
     const runs = await read($, micro)
     const steps: KarakamStep[] = plan?.steps ?? []
@@ -137,6 +146,64 @@ export const register: Register = on => {
     const tally = ORDER.map(st => [st, [...stateById.values()].filter(v => v === st).length] as const)
       .filter(([, n]) => n > 0)
 
+    const toggle = (
+      <Button
+        key="toggle"
+        plain
+        hotkey="d"
+        label={expanded ? 'less' : 'details'}
+        onPress={async () => {
+          const next = !(await read($, isExpanded))
+          await update($, isExpanded, () => next)
+          await $.ui.open({ id: PANE, title: 'Karagöz', ...SIZE[next ? 'expanded' : 'compact'] })
+        }}
+      />
+    )
+    const map = rows.map(row => (
+      <Text wrap="truncate">
+        <Text dimColor>{row[0]} </Text>
+        {row.map(id => {
+          const look = LOOK[stateById.get(id) ?? 'waiting']
+          return <Text color={look.color} dimColor={look.dim}>{expanded ? ' ' : ''}{look.icon}</Text>
+        })}
+      </Text>
+    ))
+
+    if (!expanded) {
+      // Only what moves: running and refactoring steps with their latest micro-step, then blocked ones.
+      const moving = ids.filter(id => ['running', 'refactoring', 'blocked'].includes(stateById.get(id) ?? ''))
+      return (
+        <Box flexDirection="column">
+          {map}
+          <Text wrap="truncate">
+            {tally.map(([st, n]) => (
+              <Text>
+                <Text color={LOOK[st].color} dimColor={LOOK[st].dim}>{LOOK[st].icon}</Text>
+                {n}{' '}
+              </Text>
+            ))}
+          </Text>
+          {moving.map(id => {
+            const look = LOOK[stateById.get(id) ?? 'waiting']
+            const last = runs.filter(m => m.step === id).at(-1)
+            return (
+              <Text wrap="truncate">
+                <Text color={look.color}>{look.icon}</Text> <Text bold>{id}</Text>{' '}
+                {last ? (
+                  <Text>
+                    <Text color={MICRO_LOOK[last.status].color}>{MICRO_LOOK[last.status].icon}</Text> {last.label}
+                  </Text>
+                ) : (
+                  <Text dimColor>{stateById.get(id)}</Text>
+                )}
+              </Text>
+            )
+          })}
+          {toggle}
+        </Box>
+      )
+    }
+
     return (
       <Box flexDirection="column">
         {plan && (
@@ -144,15 +211,7 @@ export const register: Register = on => {
             {plan.path}
           </Text>
         )}
-        {rows.map(row => (
-          <Text wrap="truncate">
-            <Text dimColor>{row[0]} </Text>
-            {row.map(id => {
-              const look = LOOK[stateById.get(id) ?? 'waiting']
-              return <Text color={look.color} dimColor={look.dim}> {look.icon}</Text>
-            })}
-          </Text>
-        ))}
+        {map}
         <Text wrap="truncate">
           {tally.map(([st, n], i) => (
             <Text>
@@ -189,6 +248,7 @@ export const register: Register = on => {
             </Box>
           )
         })}
+        <Box marginTop={1}>{toggle}</Box>
       </Box>
     )
   })

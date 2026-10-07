@@ -33,6 +33,8 @@ declare module 'claude-code' {
     karakam: {
       ledger: KarakamLedger | null
       micro: KarakamMicro[]
+      /** The full step list instead of the compact view. */
+      isExpanded: boolean
     }
   }
 }
