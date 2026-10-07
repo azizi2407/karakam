@@ -109,6 +109,23 @@ That third layer earns its keep. In the first real run of this pair, on a critic
 
 A single Observer — **either one of them** — would have let that through.
 
+### Progress pane
+
+When Karagöz starts, a pane opens beside the transcript with the plan's steps, read from `progress.md` as the ledger changes, and under each step its micro-steps as they happen: every Worker and Observer run (model, effort, Observer lens, verdict, how long it took), refactor rounds on Opus, and the git checkpoint.
+
+```
+/home/me/my-project/plan/progress.md
+██████████░░░░░░░░░░░░░░░░░░░░ 1/3 done · 1 running
+✓ 01 done · high — parser, 12 tests
+↻ 02 refactoring · high · critical — refactor 1/3 @opus-high
+  ├ ✓ worker sonnet high 1m 12s
+  ├ ✗ observer high · behavior FAIL 30s
+  └ … worker opus high (refactor)
+· 03 pending · medium
+```
+
+It is a Claude Code mod (`plugins/karakam/hooks/progress.tsx`): it only watches — the skills run the same without it. Opened on its own, the pane needs a terminal at least 144 columns wide; `/karakam-progress` opens it at any width.
+
 ### Smart continuation
 
 When a step can't pass after its refactor rounds, the loop doesn't stall waiting for you. The step is marked `blocked`, everything that depends on it waits, and independent work carries on. When there's nothing left to do (or the dependency graph turns out to deadlock), the loop closes itself and leaves you a summary of what's `done`, what's `blocked`, and why.
@@ -145,6 +162,7 @@ These are small, fixed tasks — they show relative cost and whether recovery wo
 ## Requirements
 
 - Claude Code with sub-agent (Agent tool) access, Opus and Sonnet. Fable is used only if you ask for it.
+- For the progress pane: a Claude Code build with function hooks (mods).
 - For long autonomous runs on a server, run inside `tmux`/`screen` — `/loop` lives in the session, and it dies with your SSH connection.
 
 ## Language
