@@ -69,6 +69,7 @@ test('the pane shows each step with its micro-steps', async ($, on) => {
   on('tool.call', () => ({ result: {} as never, text: 'ok' }))
   on('agent.spawn', (_$, e) => ({ model: 'm', agentId: `${e.subagentType}#${e.description}` }))
   on('turn.complete', (_$, e) => ({ text: e.answer }))
+  on('ui.open', () => ({ value: { isPlaced: true } }) as never)
 
   await $.tool.call({ tool: 'Read', file_path: '/p/plan/progress.md' })
   const spawn = async (subagentType: string, description: string, prompt: string) => {
@@ -89,6 +90,14 @@ test('the pane shows each step with its micro-steps', async ($, on) => {
       plugin: 'karakam', surface, component: 'Pane', requestId: 'karakam',
       props: { title: 'Karagöz', isFocused: false, bodyColumns: 80, placement: 'dock', scroll: { top: 0, bodyRows: 30 } as never, view: {} as never },
     })
+    const compact = (await ui.findAll({ type: 'Text' })).map(t => t.text)
+    expect(compact.some(t => t.startsWith('01') && t.includes('✓✓○·✓·✓↻·✗'))).toBe(true)
+    expect(compact.some(t => t.includes('✓4 ↻1 ○1 ·3 ✗1'))).toBe(true)
+    expect(compact.some(t => t.includes('08') && t.includes('… worker opus high (refactor)'))).toBe(true)
+    expect(compact.some(t => t.includes('10') && t.includes('blocked'))).toBe(true)
+    expect(compact.some(t => t.includes('03 ready'))).toBe(false)   // not moving: only in details
+
+    await ui.press({ key: 'toggle' })
     const texts = (await ui.findAll({ type: 'Text' })).map(t => t.text)
     expect(texts.some(t => t.startsWith('01') && t.includes('✓ ✓ ○ · ✓ · ✓ ↻ · ✗'))).toBe(true)
     expect(texts.some(t => t.includes('✓ 4 done') && t.includes('○ 1 ready') && t.includes('· 3 waiting') && t.includes('✗ 1 blocked'))).toBe(true)
@@ -97,5 +106,6 @@ test('the pane shows each step with its micro-steps', async ($, on) => {
     expect(texts.some(t => t.includes('├ ✓ worker sonnet high') && t.includes('1m 12s'))).toBe(true)
     expect(texts.some(t => t.includes('observer high · behavior') && t.includes('FAIL'))).toBe(true)
     expect(texts.some(t => t.includes('└ … worker opus high (refactor)'))).toBe(true)
+    await ui.press({ key: 'toggle' })
   }
 })

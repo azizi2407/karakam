@@ -111,25 +111,24 @@ A single Observer — **either one of them** — would have let that through.
 
 ### Progress pane
 
-When Karagöz starts, a pane opens beside the transcript. Steps don't finish in order — Karagöz runs whatever the dependency graph allows — so the top of the pane is a map with one cell per step: done, running, refactoring, blocked, **ready** (every dependency done, it can start now) or **waiting** (and on what). Below it are the plan's steps, read from `progress.md` as the ledger changes, and under each step its micro-steps as they happen: every Worker and Observer run (model, effort, Observer lens, verdict, how long it took), refactor rounds on Opus, and the git checkpoint.
+When Karagöz starts, a small pane opens in the top-right corner — a narrow column docked to the right of the fullscreen transcript (above the prompt on the main screen). Steps don't finish in order — Karagöz runs whatever the dependency graph allows — so it shows a map with one cell per step, how many are in each state, and only the steps in motion with their current micro-step:
 
 ```
-/home/me/my-project/plan/progress.md
-01  ✓ ✓ ○ · ✓ · ✓ ↻ · ✗
-✓ 4 done  ↻ 1 refactoring  ○ 1 ready  · 3 waiting  ✗ 1 blocked
-✓ 01 done · high
-✓ 02 done · high
-○ 03 ready · high
-· 04 waiting · medium · waits on 03
-✓ 05 done · high
+01 ✓✓○·✓·✓↻·✗
+✓4 ↻1 ○1 ·3 ✗1
+↻ 08 … worker opus high (re…
+✗ 10 blocked
+details
+```
+
+`✓` done, `▶` running, `↻` refactoring, `✗` blocked, `○` ready (every dependency done, it can start now), `·` waiting. Press `d` (or `details`) for the full list: every step, what each waiting one waits on, and under each step its micro-steps as they happen — every Worker and Observer run (model, effort, Observer lens, verdict, how long it took), refactor rounds on Opus, and the git checkpoint:
+
+```
 · 06 waiting · high · waits on 08
-✓ 07 done · high
 ↻ 08 refactoring · high · critical — refactor 1/3 @opus-high
   ├ ✓ worker sonnet high 1m 12s
   ├ ✗ observer high · behavior FAIL 30s
   └ … worker opus high (refactor)
-· 09 waiting · low · waits on 08
-✗ 10 blocked · high — plan-level fault
 ```
 
 It is a Claude Code mod (`plugins/karakam/hooks/progress.tsx`): it only watches — the skills run the same without it. Opened on its own, the pane needs a terminal at least 144 columns wide; `/karakam-progress` opens it at any width.

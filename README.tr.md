@@ -111,25 +111,24 @@ Tek bir Observer — **ikisinden hangisi olursa olsun** — bunun geçmesine izi
 
 ### İlerleme paneli
 
-Karagöz başladığında transkriptin yanında bir panel açılır. Adımlar sırayla bitmez — Karagöz bağımlılık grafiğinin izin verdiği adımı yürütür — bu yüzden panelin üstü her adıma bir hücre ayıran bir haritadır: bitti, çalışıyor, refactor'da, bloklandı, **hazır** (tüm bağımlılıkları bitti, hemen başlayabilir) ya da **bekliyor** (ve neyi beklediği). Altında planın adımları defter değiştikçe `progress.md`'den okunur; her adımın altında da mikro-adımları olurken görünür: her Worker ve Observer koşusu (model, effort, Observer'ın bakış açısı, sonuç, süre), Opus'taki refactor turları ve git checkpoint'i.
+Karagöz başladığında sağ üst köşede küçük bir panel açılır — tam ekran transkriptin sağına sabitlenmiş dar bir sütun (ana ekranda prompt'un üstünde). Adımlar sırayla bitmez — Karagöz bağımlılık grafiğinin izin verdiği adımı yürütür — bu yüzden panel her adıma bir hücre ayıran bir harita, her durumdan kaç adım olduğunu ve yalnızca hareket hâlindeki adımları o anki mikro-adımlarıyla gösterir:
 
 ```
-/home/me/my-project/plan/progress.md
-01  ✓ ✓ ○ · ✓ · ✓ ↻ · ✗
-✓ 4 done  ↻ 1 refactoring  ○ 1 ready  · 3 waiting  ✗ 1 blocked
-✓ 01 done · high
-✓ 02 done · high
-○ 03 ready · high
-· 04 waiting · medium · waits on 03
-✓ 05 done · high
+01 ✓✓○·✓·✓↻·✗
+✓4 ↻1 ○1 ·3 ✗1
+↻ 08 … worker opus high (re…
+✗ 10 blocked
+details
+```
+
+`✓` bitti, `▶` çalışıyor, `↻` refactor'da, `✗` bloklandı, `○` hazır (tüm bağımlılıkları bitti, hemen başlayabilir), `·` bekliyor. `d`'ye (ya da `details`'e) basınca tam liste açılır: her adım, bekleyenlerin neyi beklediği ve her adımın altında mikro-adımları olurken — her Worker ve Observer koşusu (model, effort, Observer'ın bakış açısı, sonuç, süre), Opus'taki refactor turları ve git checkpoint'i:
+
+```
 · 06 waiting · high · waits on 08
-✓ 07 done · high
 ↻ 08 refactoring · high · critical — refactor 1/3 @opus-high
   ├ ✓ worker sonnet high 1m 12s
   ├ ✗ observer high · behavior FAIL 30s
   └ … worker opus high (refactor)
-· 09 waiting · low · waits on 08
-✗ 10 blocked · high — plan-level fault
 ```
 
 Bir Claude Code mod'u (`plugins/karakam/hooks/progress.tsx`): yalnızca izler — skill'ler onsuz da aynı çalışır. Kendiliğinden açıldığında panel en az 144 sütunluk bir terminal ister; `/karakam-progress` her genişlikte açar.
