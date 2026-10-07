@@ -4,6 +4,8 @@
 export type KarakamStep = {
   id: string
   status: string
+  /** Steps this one waits for (the ledger's depends_on). */
+  dependsOn: string[]
   effort: string
   critical: boolean
   note: string

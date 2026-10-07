@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { classifySpawn, gitStep, parseLedger, verdict } from './ledger'
+import { classifySpawn, gitStep, parseLedger, stateOf, verdict } from './ledger'
 
 const LEDGER = `# Progress
 
@@ -11,18 +11,40 @@ const LEDGER = `# Progress
 | 03 | pending | 02 | medium | no | steps/03.md | |
 `
 
+// Done out of order: 01, 02, 05 and 07 finished while 03, 04 and 06 wait.
+const GRAPH = `| step | status | depends_on | effort | critical | file | note |
+|------|--------|-----------|--------|----------|------|------|
+| 01 | done | - | high | no | steps/01.md | |
+| 02 | done | - | high | no | steps/02.md | |
+| 03 | pending | 02 | high | no | steps/03.md | |
+| 04 | pending | 03 | medium | no | steps/04.md | |
+| 05 | done | - | high | no | steps/05.md | |
+| 06 | pending | 05, 08 | high | no | steps/06.md | |
+| 07 | done | - | high | no | steps/07.md | |
+| 08 | refactoring | 07 | high | yes | steps/08.md | refactor 1/3 @opus-high |
+| 09 | pending | 08 | low | no | steps/09.md | |
+| 10 | blocked | 01 | high | no | steps/10.md | plan-level fault |
+`
+
 describe('ledger helpers', () => {
   test('parses the step rows', () => {
     expect(parseLedger(LEDGER)).toEqual([
-      { id: '01', status: 'done', effort: 'high', critical: false, note: 'parser, 12 tests' },
-      { id: '02', status: 'refactoring', effort: 'high', critical: true, note: 'refactor 1/3 @opus-high' },
-      { id: '03', status: 'pending', effort: 'medium', critical: false, note: '' },
+      { id: '01', status: 'done', dependsOn: [], effort: 'high', critical: false, note: 'parser, 12 tests' },
+      { id: '02', status: 'refactoring', dependsOn: ['01'], effort: 'high', critical: true, note: 'refactor 1/3 @opus-high' },
+      { id: '03', status: 'pending', dependsOn: ['02'], effort: 'medium', critical: false, note: '' },
     ])
   })
 
+  test('a pending step is ready once its dependencies are done, else waiting', () => {
+    const steps = parseLedger(GRAPH)
+    expect(steps.map(s => stateOf(s, steps)).join(' ')).toBe(
+      'done done ready waiting done waiting done refactoring waiting blocked',
+    )
+  })
+
   test('recognises Worker, refactor Worker and Observer spawns', () => {
-    expect(classifySpawn('karakam:worker-high', 'Apply /p/plan/steps/02.md', 'Step 02 worker')).toEqual({
-      step: '02', kind: 'worker', label: 'worker sonnet high',
+    expect(classifySpawn('karakam:worker-high', 'Apply /p/plan/steps/08.md', 'Step 08 worker')).toEqual({
+      step: '08', kind: 'worker', label: 'worker sonnet high',
     })
     expect(classifySpawn('karakam:worker-opus-high', 'Refactor round 1', 'Refactor round 1 step 02')).toEqual({
       step: '02', kind: 'worker', label: 'worker opus high (refactor)',
@@ -43,7 +65,7 @@ describe('ledger helpers', () => {
 })
 
 test('the pane shows each step with its micro-steps', async ($, on) => {
-  on('fs.read', () => ({ value: LEDGER }) as never)
+  on('fs.read', () => ({ value: GRAPH }) as never)
   on('tool.call', () => ({ result: {} as never, text: 'ok' }))
   on('agent.spawn', (_$, e) => ({ model: 'm', agentId: `${e.subagentType}#${e.description}` }))
   on('turn.complete', (_$, e) => ({ text: e.answer }))
@@ -56,9 +78,9 @@ test('the pane shows each step with its micro-steps', async ($, on) => {
     })
     return r.deny ? '' : (r.agentId ?? '')
   }
-  const w = await spawn('karakam:worker-high', 'Step 02 worker', 'Apply /p/plan/steps/02.md')
-  const o = await spawn('karakam:observer-high', 'Step 02 behavior observer', 'Audit /p/plan/steps/02.md, lens behavior')
-  await spawn('karakam:worker-opus-high', 'Refactor round 1 step 02', 'Fix per /p/plan/reports/02-observer-behavior.md')
+  const w = await spawn('karakam:worker-high', 'Step 08 worker', 'Apply /p/plan/steps/08.md')
+  const o = await spawn('karakam:observer-high', 'Step 08 behavior observer', 'Audit /p/plan/steps/08.md, lens behavior')
+  await spawn('karakam:worker-opus-high', 'Refactor round 1 step 08', 'Fix per /p/plan/reports/08-observer-behavior.md')
   await $.turn.complete({ answer: 'done, checks passed', durationMs: 72_000, isAborted: false, turnId: 't', agentId: w, reason: 'answer' })
   await $.turn.complete({ answer: 'FAIL: crashes on empty input', durationMs: 30_000, isAborted: false, turnId: 't', agentId: o, reason: 'answer' })
 
@@ -68,8 +90,10 @@ test('the pane shows each step with its micro-steps', async ($, on) => {
       props: { title: 'Karagöz', isFocused: false, bodyColumns: 80, placement: 'dock', scroll: { top: 0, bodyRows: 30 } as never, view: {} as never },
     })
     const texts = (await ui.findAll({ type: 'Text' })).map(t => t.text)
-    expect(texts.some(t => t.includes('1/3 done'))).toBe(true)
-    expect(texts.some(t => t.includes('02 refactoring') && t.includes('critical'))).toBe(true)
+    expect(texts.some(t => t.startsWith('01') && t.includes('✓ ✓ ○ · ✓ · ✓ ↻ · ✗'))).toBe(true)
+    expect(texts.some(t => t.includes('✓ 4 done') && t.includes('○ 1 ready') && t.includes('· 3 waiting') && t.includes('✗ 1 blocked'))).toBe(true)
+    expect(texts.some(t => t.includes('06 waiting') && t.includes('waits on 08'))).toBe(true)
+    expect(texts.some(t => t.includes('08 refactoring') && t.includes('critical'))).toBe(true)
     expect(texts.some(t => t.includes('├ ✓ worker sonnet high') && t.includes('1m 12s'))).toBe(true)
     expect(texts.some(t => t.includes('observer high · behavior') && t.includes('FAIL'))).toBe(true)
     expect(texts.some(t => t.includes('└ … worker opus high (refactor)'))).toBe(true)
