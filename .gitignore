@@ -1,3 +1,5 @@
 plugins/karakam/evals/results/
 plugins/karakam/evals/bench/results/
 __pycache__/
+# laid by Claude Code when the plugin loads from this folder
+plugins/karakam/.claude-plugin/types/

@@ -109,6 +109,23 @@ O üçüncü katman hakkını veriyor. Bu ikilinin ilk gerçek koşusunda, kriti
 
 Tek bir Observer — **ikisinden hangisi olursa olsun** — bunun geçmesine izin verirdi.
 
+### İlerleme paneli
+
+Karagöz başladığında transkriptin yanında bir panel açılır. Planın adımları, defter değiştikçe `progress.md`'den okunur; her adımın altında da mikro-adımları olurken görünür: her Worker ve Observer koşusu (model, effort, Observer'ın bakış açısı, sonuç, süre), Opus'taki refactor turları ve git checkpoint'i.
+
+```
+/home/me/my-project/plan/progress.md
+██████████░░░░░░░░░░░░░░░░░░░░ 1/3 done · 1 running
+✓ 01 done · high — parser, 12 tests
+↻ 02 refactoring · high · critical — refactor 1/3 @opus-high
+  ├ ✓ worker sonnet high 1m 12s
+  ├ ✗ observer high · behavior FAIL 30s
+  └ … worker opus high (refactor)
+· 03 pending · medium
+```
+
+Bir Claude Code mod'u (`plugins/karakam/hooks/progress.tsx`): yalnızca izler — skill'ler onsuz da aynı çalışır. Kendiliğinden açıldığında panel en az 144 sütunluk bir terminal ister; `/karakam-progress` her genişlikte açar.
+
 ### Akıllı devam
 
 Bir adım refactor turlarından sonra da geçemezse, loop seni bekleyip durmaz. Adım `blocked` olarak işaretlenir, ona bağımlı olan her şey bekler, bağımsız işler devam eder. Yapacak bir şey kalmadığında (ya da plan grafiğinde bir döngü/kilitlenme varsa) loop kendini kapatır ve sana neyin `done`, neyin `blocked` olduğunun ve nedeninin özetini bırakır.
@@ -145,6 +162,7 @@ Bunlar küçük, sabit görevler — göreli maliyeti ve toparlanmanın çalış
 ## Gereksinimler
 
 - Alt-ajan (Agent tool) erişimi olan Claude Code, Opus ve Sonnet. Fable yalnızca sen istersen kullanılır.
+- İlerleme paneli için: function hook (mod) destekleyen bir Claude Code sürümü.
 - Sunucuda uzun otonom koşular için `tmux`/`screen` içinde çalıştır — `/loop` oturumda yaşar ve SSH bağlantın kesildiğinde o da ölür.
 
 ## Dil
