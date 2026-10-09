@@ -4,7 +4,8 @@
 //
 // The judge is TypeSafe's Jev when TYPESAFE_API_KEY is set (a typed yes/no
 // with its probability), else Haiku through the session's own client (about
-// $0.0001 a judgment); KARAKAM_JUDGE=haiku|jev|off picks one. Any failure lets
+// $0.0001 a judgment); KARAKAM_JUDGE=haiku|jev|off picks one (jev
+// with no key leaves the Authorization header to a proxy). Any failure lets
 // the stop through.
 import type { EngineInterface, On } from 'claude-code'
 
@@ -16,7 +17,7 @@ async function earlyStop($: EngineInterface, reply: string): Promise<number | un
     const key = await $.env.get('TYPESAFE_API_KEY')
     const r = await $.http.fetch(JEV_URL, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      headers: { ...(key ? { Authorization: `Bearer ${key}` } : {}), 'Content-Type': 'application/json' },
       body: jevBody(reply),
     })
     return r.ok ? readJev(r.text) : undefined

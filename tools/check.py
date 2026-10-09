@@ -292,6 +292,11 @@ with tempfile.TemporaryDirectory() as d:
         r = jev("effort", plan, env={**env, **extra})
         if r.returncode != 3 or not r.stdout.startswith("jev unavailable"):
             err(f"jev.py must exit 3 with 'jev unavailable' when {name}; got {r.returncode} {r.stdout}{r.stderr}")
+    FakeJev.seen.clear()
+    r = jev("lenses", plan, env={**env, "TYPESAFE_API_KEY": "", "KARAKAM_JUDGE": "jev"})
+    if r.returncode != 0 or FakeJev.seen[0][0] is not None:
+        err(f"jev.py with KARAKAM_JUDGE=jev and no key must call without an Authorization header "
+            f"(a proxy adds it); got {r.returncode} {FakeJev.seen[:1]}")
 server.shutdown()
 
 if errors:

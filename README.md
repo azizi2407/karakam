@@ -136,7 +136,7 @@ It is a Claude Code mod (`plugins/karakam/hooks/progress.tsx`): it only watches 
 
 ### Optional Jev judge
 
-Some decisions need a calibrated yes, no or pick-one, not prose. With `TYPESAFE_API_KEY` set, karakam asks TypeSafe's [Jev](https://docs.typesafe.ai) — a model that answers typed questions with probabilities, for a fraction of a cent — at five points. Without the key the Worker stop guard runs on Haiku and the other four are skipped; `KARAKAM_JUDGE=off` turns all of it off.
+Some decisions need a calibrated yes, no or pick-one, not prose. With `TYPESAFE_API_KEY` set, karakam asks TypeSafe's [Jev](https://docs.typesafe.ai) — a model that answers typed questions with probabilities, for a fraction of a cent — at five points. Without the key the Worker stop guard runs on Haiku and the other four are skipped; `KARAKAM_JUDGE=off` turns all of it off. Where a proxy adds the `Authorization` header for you (a cloud environment's network secret), set `KARAKAM_JUDGE=jev` instead of the key.
 
 - **Worker stop guard.** When a Worker stops on a progress summary ("next I'll wire the CLI…") instead of a final report, the guard sends it back once to finish in the same context, instead of letting the step fail its audit or the Coordinator spend turns resuming it. Without a Jev key it judges with Haiku through your own session, for about $0.0001 a judgment.
 - **Effort second opinion.** After writing the plan, Hacivat runs `jev.py effort`: a step it put at low or medium that Jev reads as likely `high` gets raised; a non-critical `high` step Jev is near sure is simpler may be lowered.

@@ -136,7 +136,7 @@ Bir Claude Code mod'u (`plugins/karakam/hooks/progress.tsx`): yalnızca izler �
 
 ### İsteğe bağlı Jev yargıcı
 
-Bazı kararlar düzyazı değil, kalibre edilmiş bir evet, hayır ya da seçim ister. `TYPESAFE_API_KEY` tanımlıysa karakam beş noktada TypeSafe'in [Jev](https://docs.typesafe.ai) modeline sorar — tipli sorulara olasılıkla cevap veren, kuruşun altında maliyetli bir model. Anahtar yoksa Worker stop guard Haiku ile çalışır, diğer dördü atlanır; `KARAKAM_JUDGE=off` hepsini kapatır.
+Bazı kararlar düzyazı değil, kalibre edilmiş bir evet, hayır ya da seçim ister. `TYPESAFE_API_KEY` tanımlıysa karakam beş noktada TypeSafe'in [Jev](https://docs.typesafe.ai) modeline sorar — tipli sorulara olasılıkla cevap veren, kuruşun altında maliyetli bir model. Anahtar yoksa Worker stop guard Haiku ile çalışır, diğer dördü atlanır; `KARAKAM_JUDGE=off` hepsini kapatır. `Authorization` başlığını bir proxy senin yerine ekliyorsa (bulut ortamındaki bir network secret), anahtar yerine `KARAKAM_JUDGE=jev` tanımla.
 
 - **Worker stop guard.** Bir Worker nihai rapor yerine bir ara özetle ("sıradaki adımda CLI'yı bağlayacağım…") durursa, guard onu bir kez geri gönderir ve işi aynı context içinde bitirtir; adımın denetimden kalmasına ya da Koordinatörün onu sürdürmek için tur harcamasına izin vermez. Jev anahtarı yoksa kendi oturumun üzerinden Haiku ile yargılar; karar başına yaklaşık $0.0001.
 - **Effort için ikinci görüş.** Hacivat planı yazdıktan sonra `jev.py effort` çalıştırır: low ya da medium verdiği ama Jev'in büyük olasılıkla `high` gördüğü adım yükseltilir; Jev'in daha basit olduğundan neredeyse emin olduğu kritik olmayan bir `high` adım düşürülebilir.

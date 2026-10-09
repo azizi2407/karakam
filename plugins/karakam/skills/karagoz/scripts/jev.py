@@ -8,8 +8,8 @@
 
 Jev answers yes/no and multiple-choice questions with probabilities; it can't
 read the repo or run anything, so it is advice the caller weighs, never a
-verdict. Needs TYPESAFE_API_KEY. KARAKAM_JUDGE=off turns it off; then, or with
-no key, or when the API can't be reached, it prints one line saying why and
+verdict. Needs TYPESAFE_API_KEY, or KARAKAM_JUDGE=jev when a proxy adds the
+Authorization header itself. KARAKAM_JUDGE=off turns it off; then, or with no key, or when the API can't be reached, it prints one line saying why and
 exits 3 — the caller goes on without it. TYPESAFE_BASE_URL overrides the API.
 """
 import json
@@ -73,7 +73,7 @@ def api_key():
     if os.environ.get("KARAKAM_JUDGE", "").lower() == "off":
         raise Unavailable("KARAKAM_JUDGE=off")
     key = os.environ.get("TYPESAFE_API_KEY")
-    if not key:
+    if not key and os.environ.get("KARAKAM_JUDGE", "").lower() != "jev":
         raise Unavailable("no TYPESAFE_API_KEY")
     return key
 
@@ -86,7 +86,7 @@ def ask(state, questions):
     body = json.dumps({"model": MODEL, "state": state, "questions": questions}).encode()
     req = urllib.request.Request(
         os.environ.get("TYPESAFE_BASE_URL", URL), data=body, method="POST",
-        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
+        headers={**({"Authorization": f"Bearer {key}"} if key else {}), "Content-Type": "application/json"})
     try:
         with urllib.request.urlopen(req, timeout=30) as r:
             data = json.load(r)

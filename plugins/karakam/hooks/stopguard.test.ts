@@ -15,7 +15,7 @@ describe('judge helpers', () => {
     expect(pickBackend(undefined, undefined)).toBe('haiku')
     expect(pickBackend('haiku', undefined)).toBe('haiku')
     expect(pickBackend('OFF', 'k')).toBe('off')
-    expect(pickBackend('jev', undefined)).toBe('haiku')
+    expect(pickBackend('jev', undefined)).toBe('jev')
   })
 
   test('reads Jev and Haiku answers', () => {

@@ -27,7 +27,8 @@ export const SEND_BACK =
 
 export function pickBackend(judge: string | undefined, key: string | undefined): Backend {
   const asked = judge?.trim().toLowerCase()
-  if (asked === 'off' || asked === 'haiku') return asked
+  // `jev` with no key: a proxy adds the Authorization header (a cloud environment's network secret).
+  if (asked === 'off' || asked === 'haiku' || asked === 'jev') return asked
   return key ? 'jev' : 'haiku'
 }
 
