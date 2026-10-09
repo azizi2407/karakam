@@ -9,7 +9,8 @@ Checks:
     value like `description: a: b` breaks the page even though Claude Code
     tolerates it);
   - plugins/karakam/agents/ is up to date with tools/agents-src/;
-  - the two handoff-contract.md copies are byte-identical;
+  - the two handoff-contract.md copies, and the two jev.py copies, are
+    byte-identical;
   - plugin.json and marketplace.json agree on name, version and description,
     and every JSON manifest parses;
   - README.md and README.tr.md have the same structure (headings, code blocks,
@@ -17,7 +18,9 @@ Checks:
   - every eval case.yaml parses;
   - karagoz's scripts/stepgit.sh commits and reverts exactly a step's files,
     including new, deleted and never-existing paths, and `land` never discards
-    a worktree whose commit or merge failed.
+    a worktree whose commit or merge failed;
+  - jev.py sends typed questions and turns Jev's answers into advice, against
+    a local stand-in for the API, and exits 3 when Jev is unavailable.
 """
 import json
 import subprocess
@@ -79,6 +82,9 @@ if r.returncode:
 a, b = (PLUGIN / "skills" / s / "references" / "handoff-contract.md" for s in ("hacivat", "karagoz"))
 if a.read_bytes() != b.read_bytes():
     err("the two handoff-contract.md copies differ — they must be byte-identical")
+a, b = (PLUGIN / "skills" / s / "scripts" / "jev.py" for s in ("hacivat", "karagoz"))
+if a.read_bytes() != b.read_bytes():
+    err("the two jev.py copies differ — they must be byte-identical")
 
 # 4. manifests
 try:
@@ -206,6 +212,87 @@ with tempfile.TemporaryDirectory() as repo:
     if r.returncode != 2 or not Path(wt).exists() or Path(repo, ".git", "MERGE_HEAD").exists() \
             or Path(repo, "mod.txt").read_text() != "ours\n":
         err(f"stepgit.sh land must abort a conflicting merge and keep the worktree: exit {r.returncode}")
+
+# 8. jev.py against a stand-in API
+import http.server
+import os
+import threading
+
+JEV = PLUGIN / "skills" / "karagoz" / "scripts" / "jev.py"
+
+
+class FakeJev(http.server.BaseHTTPRequestHandler):
+    seen = []
+
+    def do_POST(self):
+        req = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        FakeJev.seen.append((self.headers.get("Authorization"), req))
+        answers = {}
+        for qid, q in req["questions"].items():
+            if q["type"] == "noul":
+                answers[qid] = {"type": "noul", "noul": 0.05 if "librar" in q["instructions"] else 0.9}
+            elif "mechanical" in req["state"]:
+                answers[qid] = {"type": "choice", "choice": "low",
+                                "probabilities": {"low": 0.9, "medium": 0.07, "high": 0.03}}
+            elif qid == "fault":
+                answers[qid] = {"type": "choice", "choice": "spec",
+                                "probabilities": {"worker": 0.2, "spec": 0.7, "plan": 0.1}}
+            else:
+                answers[qid] = {"type": "choice", "choice": "high",
+                                "probabilities": {"low": 0.1, "medium": 0.3, "high": 0.6}}
+        body = json.dumps({"answers": answers}).encode()
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *_):
+        pass
+
+
+server = http.server.HTTPServer(("127.0.0.1", 0), FakeJev)
+threading.Thread(target=server.serve_forever, daemon=True).start()
+env = {**os.environ, "TYPESAFE_API_KEY": "k", "TYPESAFE_BASE_URL": f"http://127.0.0.1:{server.server_port}/"}
+env.pop("KARAKAM_JUDGE", None)
+with tempfile.TemporaryDirectory() as d:
+    plan = Path(d)
+    (plan / "steps").mkdir()
+    (plan / "methodology.md").write_text("# Goal\nA stdlib-only tool.\n")
+    (plan / "steps" / "01.md").write_text("Rename the module: mechanical.\n")
+    (plan / "steps" / "02.md").write_text("Write the parser.\n")
+    (plan / "steps" / "03.md").write_text("Wire the CLI: mechanical.\n")
+    (plan / "progress.md").write_text(
+        "| step | status | depends_on | effort | critical | file | note |\n|---|---|---|---|---|---|---|\n"
+        "| 01 | pending | - | high | no | steps/01.md | |\n| 02 | pending | 01 | medium | no | steps/02.md | |\n"
+        "| 03 | pending | 02 | high | yes | steps/03.md | |\n")
+
+    def jev(*args, **kw):
+        return subprocess.run([sys.executable, str(JEV), *map(str, args)], capture_output=True, text=True,
+                              env=kw.get("env", env))
+
+    r = jev("effort", plan)
+    lines = r.stdout.splitlines()
+    if r.returncode != 0 or len(lines) != 3 or not lines[0].endswith("lower to low") \
+            or not lines[1].endswith("raise to high") or not lines[2].endswith("keep"):
+        err(f"jev.py effort: lower a plain high step, raise a likely-high one, keep a critical one; got {r.stdout}{r.stderr}")
+    if FakeJev.seen[0][0] != "Bearer k" or FakeJev.seen[0][1]["model"] != "jev-latest":
+        err(f"jev.py must send the key as a bearer token and name the model: {FakeJev.seen[0]}")
+    r = jev("lenses", plan)
+    if r.returncode != 0 or "stack/library-correctness: p=0.05 -> skip in round 1" not in r.stdout \
+            or "step-ordering & dependencies: p=0.90 -> run" not in r.stdout:
+        err(f"jev.py lenses: skip an irrelevant lens, run a relevant one; got {r.stdout}{r.stderr}")
+    r = jev("triage", plan / "steps" / "02.md", "FAIL: the spec's regex can't match ISO dates")
+    if r.returncode != 0 or not r.stdout.startswith("spec (worker=0.20 spec=0.70 plan=0.10)"):
+        err(f"jev.py triage: print the pick and every probability; got {r.stdout}{r.stderr}")
+    r = jev("rubric", plan)
+    if r.returncode != 0 or json.loads(r.stdout or "{}").get("runnable_criteria") != 0.9:
+        err(f"jev.py rubric: print the yes-probability per check as JSON; got {r.stdout}{r.stderr}")
+    for name, extra in (("no key", {"TYPESAFE_API_KEY": ""}), ("KARAKAM_JUDGE=off", {"KARAKAM_JUDGE": "off"}),
+                        ("unreachable", {"TYPESAFE_BASE_URL": "http://127.0.0.1:9/"})):
+        r = jev("effort", plan, env={**env, **extra})
+        if r.returncode != 3 or not r.stdout.startswith("jev unavailable"):
+            err(f"jev.py must exit 3 with 'jev unavailable' when {name}; got {r.returncode} {r.stdout}{r.stderr}")
+server.shutdown()
 
 if errors:
     print("\n".join(f"✗ {e}" for e in errors))

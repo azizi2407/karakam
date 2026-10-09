@@ -134,6 +134,18 @@ details
 
 Bir Claude Code mod'u (`plugins/karakam/hooks/progress.tsx`): yalnızca izler — skill'ler onsuz da aynı çalışır. Kendiliğinden açıldığında panel en az 144 sütunluk bir terminal ister; `/karakam-progress` her genişlikte açar.
 
+### İsteğe bağlı Jev yargıcı
+
+Bazı kararlar düzyazı değil, kalibre edilmiş bir evet, hayır ya da seçim ister. `TYPESAFE_API_KEY` tanımlıysa karakam beş noktada TypeSafe'in [Jev](https://docs.typesafe.ai) modeline sorar — tipli sorulara olasılıkla cevap veren, kuruşun altında maliyetli bir model. Anahtar yoksa hiçbir şey değişmez; `KARAKAM_JUDGE=off` kapatır.
+
+- **Worker stop guard.** Bir Worker nihai rapor yerine bir ara özetle ("sıradaki adımda CLI'yı bağlayacağım…") durursa, guard onu bir kez geri gönderir ve işi aynı context içinde bitirtir; adımın denetimden kalıp Opus'ta bir refactor turu harcamasına izin vermez. `KARAKAM_JUDGE=haiku` aynı guard'ı anahtar gerekmeden, kendi oturumun üzerinden Haiku ile çalıştırır.
+- **Effort için ikinci görüş.** Hacivat planı yazdıktan sonra `jev.py effort` çalıştırır: low ya da medium verdiği ama Jev'in büyük olasılıkla `high` gördüğü adım yükseltilir; Jev'in daha basit olduğundan neredeyse emin olduğu kritik olmayan bir `high` adım düşürülebilir.
+- **Critic lensleri.** İlk panel turundan önce `jev.py lenses`, stack/library ve adım sırası lenslerinin bu planda yargılayacak bir şeyi olup olmadığına bakar; bakacak bir şeyi olmayan lens 1. turda yer almaz.
+- **Hata ayrımı.** Bir Observer FAIL'i Worker'ın da spec'in de hatası olabiliyorsa, Koordinatör bir tur harcamadan önce `jev.py triage` ikinci görüş verir.
+- **Bench puanlaması.** Bench'in hacivat modunda `jev.py rubric` her planı kontrata göre puanlar (kendi kendine yeten adımlar, çalıştırılabilir kriterler, seeding kestirmesi olmaması, çağıran üzerinden geçen kontroller, ayrık paralel dosyalar, dürüst sınırlar).
+
+Jev yalnızca metin okur ve hiçbir şey çalıştırmaz, bu yüzden bir Observer'ın yerini asla almaz: skill'in tarttığı bir tavsiyedir ve ona ulaşılamazsa koşu onsuz devam eder.
+
 ### Akıllı devam
 
 Bir adım refactor turlarından sonra da geçemezse, loop seni bekleyip durmaz. Adım `blocked` olarak işaretlenir, ona bağımlı olan her şey bekler, bağımsız işler devam eder. Yapacak bir şey kalmadığında (ya da plan grafiğinde bir döngü/kilitlenme varsa) loop kendini kapatır ve sana neyin `done`, neyin `blocked` olduğunun ve nedeninin özetini bırakır.
@@ -170,7 +182,8 @@ Bunlar küçük, sabit görevler — göreli maliyeti ve toparlanmanın çalış
 ## Gereksinimler
 
 - Alt-ajan (Agent tool) erişimi olan Claude Code, Opus ve Sonnet. Fable yalnızca sen istersen kullanılır.
-- İlerleme paneli için: function hook (mod) destekleyen bir Claude Code sürümü.
+- İlerleme paneli ve Worker stop guard için: function hook (mod) destekleyen bir Claude Code sürümü.
+- İsteğe bağlı: Jev yargıcı için bir TypeSafe API anahtarı (`TYPESAFE_API_KEY`).
 - Sunucuda uzun otonom koşular için `tmux`/`screen` içinde çalıştır — `/loop` oturumda yaşar ve SSH bağlantın kesildiğinde o da ölür.
 
 ## Dil

@@ -6,12 +6,16 @@
 // Compact by default: a narrow dock on the right of a fullscreen transcript,
 // its content at the top — a one-line step map, the tally, and only the steps
 // in motion. `d` (or the button) toggles the full list of every step.
+//
+// A plugin loads one hooks module, so this one also registers the Worker stop
+// guard (stopguard.ts).
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { KarakamMicro, KarakamStep } from '../types'
 import { classifySpawn, duration, gitStep, shortModel, tokens, isLedger, openDeps, parseLedger, planDirsIn, stateOf, verdict } from './ledger'
 import type { StepState } from './ledger'
+import { registerStopGuard } from './stopguard'
 
 const PANE = 'karakam'
 const ledger = atom({ plugin: 'karakam', key: 'ledger' } as const, null)
@@ -80,6 +84,7 @@ async function discover($: EngineInterface, text: string) {
 
 
 export const register: Register = on => {
+  registerStopGuard(on)
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'karakam-progress',
