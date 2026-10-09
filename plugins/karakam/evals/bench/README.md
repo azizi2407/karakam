@@ -103,3 +103,18 @@ The default scenario's plan is deliberately well specified — no version measur
 - **The guard pays for itself many times over.** Haiku cost $0.0003 a run; the Coordinator turns it saved cost about $0.27.
 - **No false alarms in this sample.** None of the 6 clean Worker stops was sent back.
 - **Without it, Opus does the chasing.** The Coordinator noticed every half-finished reply and resumed the Worker itself — correct, but on Opus, in the context that has to stay small.
+
+### 1.6 with Jev (same arms, `--judge jev`, 2 runs each; Hacivat 1 run)
+
+The first runs against the live API (`jev-1.13.0`). Answers came back in the documented shape (`noul`, `choice` with `probabilities`), so no parsing change was needed.
+
+| Arm | Cost | Sent back by the guard | Hidden tests |
+|---|---|---|---|
+| early stop, no guard (from the Haiku table) | $1.31–1.45 | — | 18/18 |
+| early stop, guard (`--judge jev`) | $1.19–1.27 | 3 of 3 | 18/18 |
+| clean Workers, guard (`--judge jev`) | $1.17–1.18 | 0 of 3 | 18/18 |
+
+- **Jev and Haiku catch the same stops.** Both sent back every half-finished Worker (6 of 6 across their runs) and none of the 12 clean ones. A Jev judgment costs about 350 input tokens at $0.042/MTok, about $0.00002; Haiku's is about $0.0001. Both round to nothing next to a $1 run.
+- **The run-to-run spread is Opus, not the judge.** The clean Jev runs cost $0.09 more than the clean Haiku ones; the difference is all Observer and Coordinator spend, and no Coordinator resumed a Worker in any guarded run.
+- **Hacivat used both planning checks.** `jev.py lenses` kept both optional lenses for this plan (a web service with a database: p = 0.37 and 0.46, well above the 0.15 skip line). `jev.py effort` advised raising two `medium` steps to `high` (p(high) = 0.67, 0.70), and Hacivat raised both. The plan cost $3.60 against $2.62 in 1.4. That is one run each, of a larger plan (6 steps, 3 critical, against 5) with one more critic call; Jev's own share is a few hundredths of a cent. Rubric: runnable criteria 0.96, honest limits 0.95, no seeding 0.82, disjoint files 0.67, reaches the caller 0.63, self-contained 0.58.
+- **Triage on a planted spec fault** (fifo step 02 told to consume newest-first, the Worker followed it): `spec` at 0.82.
