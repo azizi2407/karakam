@@ -3,9 +3,9 @@
 // — cheaper than the refactor round a "not done" reply would cost.
 //
 // The judge is TypeSafe's Jev when TYPESAFE_API_KEY is set (a typed yes/no
-// with its probability), Haiku through the session's own client with
-// KARAKAM_JUDGE=haiku, and nothing otherwise; KARAKAM_JUDGE=off turns it off.
-// Any failure lets the stop through.
+// with its probability), else Haiku through the session's own client (about
+// $0.0001 a judgment); KARAKAM_JUDGE=haiku|jev|off picks one. Any failure lets
+// the stop through.
 import type { EngineInterface, On } from 'claude-code'
 
 import { BLOCK_AT, JEV_URL, SEND_BACK, haikuPrompt, isWorker, jevBody, pickBackend, readHaiku, readJev } from './judge'

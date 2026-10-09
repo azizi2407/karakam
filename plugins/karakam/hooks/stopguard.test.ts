@@ -12,10 +12,10 @@ describe('judge helpers', () => {
     expect(isWorker('karakam:observer-high')).toBe(false)
     expect(isWorker('Explore')).toBe(false)
     expect(pickBackend(undefined, 'k')).toBe('jev')
-    expect(pickBackend(undefined, undefined)).toBe('off')
+    expect(pickBackend(undefined, undefined)).toBe('haiku')
     expect(pickBackend('haiku', undefined)).toBe('haiku')
     expect(pickBackend('OFF', 'k')).toBe('off')
-    expect(pickBackend('jev', undefined)).toBe('off')
+    expect(pickBackend('jev', undefined)).toBe('haiku')
   })
 
   test('reads Jev and Haiku answers', () => {
@@ -51,8 +51,8 @@ test('Jev sends an early-stopping Worker back once and lets a final report throu
   expect(JSON.parse(bodies[0]!).questions.early.type).toBe('noul')
 })
 
-test('Haiku judges with KARAKAM_JUDGE=haiku; with no judge nothing is called', async ($, on) => {
-  mock.env(on, { KARAKAM_JUDGE: 'haiku' })
+test('without a key Haiku judges, through the session', async ($, on) => {
+  mock.env(on, {})
   let calls = 0
   on('model.complete', () => { calls++; return { value: { isAnswered: true, text: '0.9', usage: {} } } as never })
   on('classic.SubagentStop', () => ({}))
@@ -60,8 +60,9 @@ test('Haiku judges with KARAKAM_JUDGE=haiku; with no judge nothing is called', a
   expect(calls).toBe(1)
 })
 
-test('without a key the guard stays out of the way', async ($, on) => {
-  mock.env(on, {})
+test('KARAKAM_JUDGE=off keeps the guard out of the way', async ($, on) => {
+  mock.env(on, { KARAKAM_JUDGE: 'off', TYPESAFE_API_KEY: 'k' })
+  on('model.complete', () => { throw new Error('must not be called') })
   on('http.fetch', () => { throw new Error('must not be called') })
   on('classic.SubagentStop', () => ({}))
   expect((await $.classic.SubagentStop({ ...STOP, last_assistant_message: EARLY } as never)).block).toBeUndefined()

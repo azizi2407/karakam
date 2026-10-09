@@ -28,7 +28,7 @@ export const SEND_BACK =
 export function pickBackend(judge: string | undefined, key: string | undefined): Backend {
   const asked = judge?.trim().toLowerCase()
   if (asked === 'off' || asked === 'haiku') return asked
-  return key ? 'jev' : 'off'
+  return key ? 'jev' : 'haiku'
 }
 
 export function jevBody(reply: string): string {
