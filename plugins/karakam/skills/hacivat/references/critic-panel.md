@@ -21,12 +21,6 @@ Spawn four `karakam:critic` agents **in a single message**. The agent definition
 
 Pass paths, not contents — the plan is already on disk.
 
-## Skipping a lens that has nothing to judge
-
-Architectural coherence and risk/omission apply to every plan. The other two can have nothing to look at: a stdlib-only script gives the stack/library critic nothing to check, and a two-step plan with no shared files leaves little for step ordering. Before round 1, `scripts/jev.py lenses <plan-dir>` asks Jev, for each of those two, whether the plan contains anything that lens could get wrong, and marks a lens `skip in round 1` when the probability is under 0.15. Leave such a lens out of round 1, and say so in one line when you present. The panel cost below is for four lenses; each skipped critic saves roughly a fifth of it.
-
-If a later fix introduces what the skipped lens judges — a new library, a step split into several — run that lens in the next round. If `jev.py` prints `jev unavailable`, run all four.
-
 ## The hill-climb
 
 ```

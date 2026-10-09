@@ -134,17 +134,11 @@ details
 
 It is a Claude Code mod (`plugins/karakam/hooks/progress.tsx`): it only watches — the skills run the same without it. Opened on its own, the pane needs a terminal at least 144 columns wide; `/karakam-progress` opens it at any width.
 
-### Optional Jev judge
+### Worker stop guard
 
-Some decisions need a calibrated yes, no or pick-one, not prose. With `TYPESAFE_API_KEY` set, karakam asks TypeSafe's [Jev](https://docs.typesafe.ai) — a model that answers typed questions with probabilities, for a fraction of a cent — at five points. Without the key the Worker stop guard runs on Haiku and the other four are skipped; `KARAKAM_JUDGE=off` turns all of it off.
+When a Worker stops on a progress summary ("next I'll wire the CLI…") instead of a final report, the guard sends it back once to finish in the same context — instead of letting the step fail its audit or the Coordinator spend Opus turns resuming it. Haiku judges each Worker stop through your own session, for about $0.0001; `KARAKAM_JUDGE=off` turns it off. It only reads the Worker's last reply, never replaces an Observer, and any failure lets the stop through.
 
-- **Worker stop guard.** When a Worker stops on a progress summary ("next I'll wire the CLI…") instead of a final report, the guard sends it back once to finish in the same context, instead of letting the step fail its audit or the Coordinator spend turns resuming it. Without a Jev key it judges with Haiku through your own session, for about $0.0001 a judgment.
-- **Effort second opinion.** After writing the plan, Hacivat runs `jev.py effort`: a step it put at low or medium that Jev reads as likely `high` gets raised; a non-critical `high` step Jev is near sure is simpler may be lowered.
-- **Critic lenses.** Before the first panel round, `jev.py lenses` checks whether the stack/library and step-ordering lenses have anything to judge in this plan; a lens with nothing to look at sits out round 1.
-- **Failure triage.** When an Observer's FAIL could be the Worker's fault or the spec's, `jev.py triage` gives a second opinion before the Coordinator spends a round.
-- **Bench grading.** In the bench's hacivat mode, `jev.py rubric` grades each plan against the contract (self-contained steps, runnable criteria, no seeding shortcut, checks through the caller, disjoint parallel files, honest limits).
-
-Jev only reads text and runs nothing, so it never replaces an Observer: it is advice the skill weighs, and any failure to reach it means the run goes on without it.
+1.6 also tried TypeSafe's Jev as the judge and as a second opinion on Hacivat's efforts, critic lenses and failure triage. Jev and Haiku caught the same stops, and on effort they picked the same level for 53 of 56 steps — both leaning to `high` where an Opus referee mostly said `medium` — so 1.7 keeps the guard on Haiku and drops Jev (details in the bench README).
 
 ### Smart continuation
 
@@ -184,7 +178,6 @@ These are small, fixed tasks — they show relative cost and whether recovery wo
 
 - Claude Code with sub-agent (Agent tool) access, Opus and Sonnet. Fable is used only if you ask for it.
 - For the progress pane and the Worker stop guard: a Claude Code build with function hooks (mods).
-- Optional: a TypeSafe API key (`TYPESAFE_API_KEY`) for the Jev judge.
 - For long autonomous runs on a server, run inside `tmux`/`screen` — `/loop` lives in the session, and it dies with your SSH connection.
 
 ## Language

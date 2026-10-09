@@ -134,17 +134,11 @@ details
 
 Bir Claude Code mod'u (`plugins/karakam/hooks/progress.tsx`): yalnızca izler — skill'ler onsuz da aynı çalışır. Kendiliğinden açıldığında panel en az 144 sütunluk bir terminal ister; `/karakam-progress` her genişlikte açar.
 
-### İsteğe bağlı Jev yargıcı
+### Worker stop guard
 
-Bazı kararlar düzyazı değil, kalibre edilmiş bir evet, hayır ya da seçim ister. `TYPESAFE_API_KEY` tanımlıysa karakam beş noktada TypeSafe'in [Jev](https://docs.typesafe.ai) modeline sorar — tipli sorulara olasılıkla cevap veren, kuruşun altında maliyetli bir model. Anahtar yoksa Worker stop guard Haiku ile çalışır, diğer dördü atlanır; `KARAKAM_JUDGE=off` hepsini kapatır.
+Bir Worker nihai rapor yerine bir ara özetle ("sıradaki adımda CLI'yı bağlayacağım…") durursa, guard onu bir kez geri gönderir ve işi aynı context içinde bitirtir; adımın denetimden kalmasına ya da Koordinatörün onu sürdürmek için Opus turu harcamasına izin vermez. Her Worker duruşunu kendi oturumun üzerinden Haiku yargılar, yaklaşık $0.0001'e; `KARAKAM_JUDGE=off` kapatır. Yalnızca Worker'ın son cevabını okur, bir Observer'ın yerini asla almaz ve herhangi bir hata durumunda duruşa izin verir.
 
-- **Worker stop guard.** Bir Worker nihai rapor yerine bir ara özetle ("sıradaki adımda CLI'yı bağlayacağım…") durursa, guard onu bir kez geri gönderir ve işi aynı context içinde bitirtir; adımın denetimden kalmasına ya da Koordinatörün onu sürdürmek için tur harcamasına izin vermez. Jev anahtarı yoksa kendi oturumun üzerinden Haiku ile yargılar; karar başına yaklaşık $0.0001.
-- **Effort için ikinci görüş.** Hacivat planı yazdıktan sonra `jev.py effort` çalıştırır: low ya da medium verdiği ama Jev'in büyük olasılıkla `high` gördüğü adım yükseltilir; Jev'in daha basit olduğundan neredeyse emin olduğu kritik olmayan bir `high` adım düşürülebilir.
-- **Critic lensleri.** İlk panel turundan önce `jev.py lenses`, stack/library ve adım sırası lenslerinin bu planda yargılayacak bir şeyi olup olmadığına bakar; bakacak bir şeyi olmayan lens 1. turda yer almaz.
-- **Hata ayrımı.** Bir Observer FAIL'i Worker'ın da spec'in de hatası olabiliyorsa, Koordinatör bir tur harcamadan önce `jev.py triage` ikinci görüş verir.
-- **Bench puanlaması.** Bench'in hacivat modunda `jev.py rubric` her planı kontrata göre puanlar (kendi kendine yeten adımlar, çalıştırılabilir kriterler, seeding kestirmesi olmaması, çağıran üzerinden geçen kontroller, ayrık paralel dosyalar, dürüst sınırlar).
-
-Jev yalnızca metin okur ve hiçbir şey çalıştırmaz, bu yüzden bir Observer'ın yerini asla almaz: skill'in tarttığı bir tavsiyedir ve ona ulaşılamazsa koşu onsuz devam eder.
+1.6 yargıç olarak, ayrıca Hacivat'ın effort'ları, critic lensleri ve hata ayrımı için ikinci görüş olarak TypeSafe'in Jev modelini de denedi. Jev ve Haiku aynı duruşları yakaladı; effort'ta da 56 adımın 53'ünde aynı seviyeyi seçtiler — ikisi de bir Opus hakemin çoğunlukla `medium` dediği yerde `high`'a kaydı — bu yüzden 1.7 guard'ı Haiku'da tutup Jev'i çıkarıyor (ayrıntılar bench README'sinde).
 
 ### Akıllı devam
 
@@ -184,7 +178,6 @@ Bunlar küçük, sabit görevler — göreli maliyeti ve toparlanmanın çalış
 
 - Alt-ajan (Agent tool) erişimi olan Claude Code, Opus ve Sonnet. Fable yalnızca sen istersen kullanılır.
 - İlerleme paneli ve Worker stop guard için: function hook (mod) destekleyen bir Claude Code sürümü.
-- İsteğe bağlı: Jev yargıcı için bir TypeSafe API anahtarı (`TYPESAFE_API_KEY`).
 - Sunucuda uzun otonom koşular için `tmux`/`screen` içinde çalıştır — `/loop` oturumda yaşar ve SSH bağlantın kesildiğinde o da ölür.
 
 ## Dil

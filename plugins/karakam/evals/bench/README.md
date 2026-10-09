@@ -118,3 +118,19 @@ The first runs against the live API (`jev-1.13.0`). Answers came back in the doc
 - **The run-to-run spread is Opus, not the judge.** The clean Jev runs cost $0.09 more than the clean Haiku ones; the difference is all Observer and Coordinator spend, and no Coordinator resumed a Worker in any guarded run.
 - **Hacivat used both planning checks.** `jev.py lenses` kept both optional lenses for this plan (a web service with a database: p = 0.37 and 0.46, well above the 0.15 skip line). `jev.py effort` advised raising two `medium` steps to `high` (p(high) = 0.67, 0.70), and Hacivat raised both. The plan cost $3.60 against $2.62 in 1.4. That is one run each, of a larger plan (6 steps, 3 critical, against 5) with one more critic call; Jev's own share is a few hundredths of a cent. Rubric: runnable criteria 0.96, honest limits 0.95, no seeding 0.82, disjoint files 0.67, reaches the caller 0.63, self-contained 0.58.
 - **Triage on a planted spec fault** (fifo step 02 told to consume newest-first, the Worker followed it): `spec` at 0.82.
+
+### 1.7: does Jev's effort advice hold up? (Opus referee, 56 step files)
+
+Every step file the bench has, from the three fixed plans and Hacivat's runs: 56 steps whose ledger names an effort (older plans with a model column left out). Jev and Haiku each saw what `jev.py effort` saw — the step file alone — and gave a distribution over low / medium / high. The referee was Opus 5.5 at `high` effort, with the plan's `methodology.md` as well and asked to reason first. Each distribution went through `jev.py`'s own advice rule against Hacivat's choice: raise to `high` at p(high) ≥ 0.5, lower only at ≥ 0.85 on a non-critical `high` step.
+
+| | top pick = Opus's | advice = Opus's | raises advised | raises Opus agreed with | mean p(high) | cost (56 steps) |
+|---|---|---|---|---|---|---|
+| Jev | 26 / 56 | 34 / 56 | 27 | 6 | 0.75 | ~$0.001 |
+| Haiku (`low` effort) | 25 / 56 | 34 / 56 | 29 | 7 | 0.67 | $0.07 |
+| Opus referee | — | — | 7 | — | 0.43 | $4.31 |
+
+- **Jev and Haiku are the same judge here.** They picked the same level for 53 of 56 steps and differed in advice on two.
+- **Neither agrees with the referee.** Both read nearly every step as `high` (Jev 45, Haiku 47); Opus picked `medium` for 33, `high` for 19 and `low` for 4. About four in five of their raises were steps Opus would have kept.
+- **The run record sides with the referee where it exists.** In 1.3's `fifo` runs with Sonnet Workers at the plan's own efforts, step 05 at `medium` passed first time in 3 of 3 (Jev and Haiku: raise to `high`); step 06 at `medium` needed a refactor round in 1 of 3, on an edge case Opus Workers also missed.
+
+So the effort check adds a near-automatic bump to `high` on top of a rubric that already says "when in doubt, `high`". 1.7 drops it, with the rest of Jev: the lens check never skipped a lens in a real plan (p 0.31–0.47 against a 0.15 line), triage duplicated a decision the Opus Coordinator already makes, and the stop guard works as well on Haiku.

@@ -19,9 +19,8 @@ critic-panel size and the resulting plan.
   python3 run.py hacivat --label baseline --runs 2
   python3 run.py report
 
---judge haiku|jev turns on the Worker stop guard (KARAKAM_JUDGE) and
---early-stop worker-high makes the Workers stop half-way, to measure it. In
-hacivat mode, with TYPESAFE_API_KEY set, Jev also grades the plan (rubric).
+--judge haiku turns on the Worker stop guard (KARAKAM_JUDGE) and
+--early-stop worker-high makes the Workers stop half-way, to measure it.
 
 Results land in results/<mode>/<label>/run-N/ (git-ignored).
 """
@@ -261,22 +260,12 @@ def run_hacivat(run_dir, plugin, model):
     (run_dir / "session.json").write_text(json.dumps(d, indent=1))
     plan = proj / "plan"
     return {
-        "rubric": plan_rubric(plugin, plan),
         "cost": d.get("total_cost_usd", 0), "turns": d.get("num_turns"),
         "wall_s": d["_wall_s"], "error": d.get("is_error"),
         "steps": len(list((plan / "steps").glob("*.md"))) if plan.exists() else 0,
         "ledger": ledger(proj),
         "result": (d.get("result") or "")[-1500:],
     }
-
-
-def plan_rubric(plugin, plan):
-    """Jev's yes-probability per plan-quality check, or None without Jev."""
-    if not plan.exists():
-        return None
-    p = subprocess.run([sys.executable, str(plugin / "skills" / "hacivat" / "scripts" / "jev.py"),
-                        "rubric", str(plan)], capture_output=True, text=True, timeout=120)
-    return json.loads(p.stdout) if p.returncode == 0 else None
 
 
 def model_costs(run_dir):
@@ -451,7 +440,7 @@ def report():
                              f"{r['hidden_tests']['passed'] + r['hidden_tests']['failed']}"
                              f" commits={r['commits']}")
                 else:
-                    extra = f" steps={r['steps']} turns={r['turns']} rubric={r.get('rubric')}"
+                    extra = f" steps={r['steps']} turns={r['turns']}"
                 roles = ", ".join(f"{k}=${v['cost']:.2f}/{v['calls'] or v['turns']}"
                                   for k, v in sorted(r.get("by_role", {}).items()))
                 print(f"- run {i}: ${r['total_cost']:.2f}, {r['wall_total_s']:.0f}s,{extra}\n"
@@ -487,9 +476,8 @@ def main():
     ap.add_argument("--worker-model", metavar="MODEL",
                     help="run the first-pass Workers on this model (e.g. opus); "
                          "refactor-round Workers keep theirs")
-    ap.add_argument("--judge", default="off", choices=["off", "haiku", "jev"],
-                    help="KARAKAM_JUDGE for the run: the Worker stop guard's judge "
-                         "(jev also needs TYPESAFE_API_KEY)")
+    ap.add_argument("--judge", default="off", choices=["off", "haiku"],
+                    help="KARAKAM_JUDGE for the run: haiku turns the Worker stop guard on")
     ap.add_argument("--legacy-plan", action="store_true",
                     help="karagoz only: convert the plan to the pre-1.2 model-column contract")
     a = ap.parse_args()
