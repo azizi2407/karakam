@@ -1,6 +1,6 @@
-import { describe, expect, test } from 'claude-code/testing'
+import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { classifySpawn, gitStep, parseLedger, stateOf, verdict } from './ledger'
+import { classifySpawn, gitStep, isLedger, parseLedger, planDirsIn, stateOf, verdict } from './ledger'
 
 const LEDGER = `# Progress
 
@@ -27,6 +27,14 @@ const GRAPH = `| step | status | depends_on | effort | critical | file | note |
 `
 
 describe('ledger helpers', () => {
+  test('finds the plan from absolute step paths, and knows a ledger from any progress.md', () => {
+    expect(planDirsIn('Apply /home/a/repo/docs/karakam/x/steps/02.md; log to /home/a/repo/docs/karakam/x/logs/02.md'))
+      .toEqual(['/home/a/repo/docs/karakam/x'])
+    expect(planDirsIn('cd w && cat /r/plan/.worktrees/02/plan/progress.md')).toEqual([])
+    expect(isLedger(GRAPH)).toBe(true)
+    expect(isLedger('# Progress\n\n- [x] wrote the intro\n- [ ] 02 review\n')).toBe(false)
+  })
+
   test('parses the step rows', () => {
     expect(parseLedger(LEDGER)).toEqual([
       { id: '01', status: 'done', dependsOn: [], effort: 'high', critical: false, note: 'parser, 12 tests' },
@@ -44,13 +52,13 @@ describe('ledger helpers', () => {
 
   test('recognises Worker, refactor Worker and Observer spawns', () => {
     expect(classifySpawn('karakam:worker-high', 'Apply /p/plan/steps/08.md', 'Step 08 worker')).toEqual({
-      step: '08', kind: 'worker', label: 'worker sonnet high',
+      step: '08', kind: 'worker', label: 'worker-high · sonnet',
     })
     expect(classifySpawn('karakam:worker-opus-high', 'Refactor round 1', 'Refactor round 1 step 02')).toEqual({
-      step: '02', kind: 'worker', label: 'worker opus high (refactor)',
+      step: '02', kind: 'worker', label: 'worker-opus-high · refactor',
     })
     expect(classifySpawn('karakam:observer-high', 'Audit /p/plan/steps/02.md, lens: behavior', 'Step 02 observer'))
-      .toEqual({ step: '02', kind: 'observer', label: 'observer high · behavior' })
+      .toEqual({ step: '02', kind: 'observer', label: 'observer-high · behavior' })
     expect(classifySpawn('Explore', 'steps/02.md', 'look around')).toBeUndefined()
   })
 
@@ -64,48 +72,66 @@ describe('ledger helpers', () => {
   })
 })
 
-test('the pane shows each step with its micro-steps', async ($, on) => {
-  on('fs.read', () => ({ value: GRAPH }) as never)
+const PANE_PROPS = {
+  title: 'Karagöz', isFocused: false, bodyColumns: 80, placement: 'dock' as const,
+  scroll: { top: 0, bodyRows: 30 } as never, view: {} as never,
+}
+const PLAN = '/home/a/repo/docs/karakam/plan'
+const OTHER = `# progress\n\n| step | status | depends_on | effort | critical | file | note |\n|---|---|---|---|---|---|---|\n| 01 | done | - | low | no | steps/01.md | |\n`
+
+test('the pane follows the right plan and every sub-agent', async ($, on) => {
+  mock.clock(on)
+  let ledgerText = GRAPH
+  let mtimeMs = 1
+  on('fs.read', (_$, e) => ({ value: e.path === `${PLAN}/progress.md` ? ledgerText : OTHER }) as never)
+  on('fs.stat', () => ({ value: { kind: 'file', size: 1, mtimeMs, isLink: false } }) as never)
   on('tool.call', () => ({ result: {} as never, text: 'ok' }))
-  on('agent.spawn', (_$, e) => ({ model: 'm', agentId: `${e.subagentType}#${e.description}` }))
+  on('agent.spawn', (_$, e) => ({ model: e.subagentType.includes('opus') ? 'claude-opus-5-5' : 'claude-sonnet-5-5', agentId: e.description }))
   on('turn.complete', (_$, e) => ({ text: e.answer }))
   on('ui.open', () => ({ value: { isPlaced: true } }) as never)
 
-  await $.tool.call({ tool: 'Read', file_path: '/p/plan/progress.md' })
-  const spawn = async (subagentType: string, description: string, prompt: string) => {
-    const r = await $.agent.spawn({
+  const spawn = (subagentType: string, description: string, prompt: string) =>
+    $.agent.spawn({
       tool_use_id: description, prompt, description, subagentType,
       provider: { plugin: 'karakam', tier: 'user' }, parentModel: 'opus', background: true, fork: false,
     })
-    return r.deny ? '' : (r.agentId ?? '')
-  }
-  const w = await spawn('karakam:worker-high', 'Step 08 worker', 'Apply /p/plan/steps/08.md')
-  const o = await spawn('karakam:observer-high', 'Step 08 behavior observer', 'Audit /p/plan/steps/08.md, lens behavior')
-  await spawn('karakam:worker-opus-high', 'Refactor round 1 step 08', 'Fix per /p/plan/reports/08-observer-behavior.md')
-  await $.turn.complete({ answer: 'done, checks passed', durationMs: 72_000, isAborted: false, turnId: 't', agentId: w, reason: 'answer' })
-  await $.turn.complete({ answer: 'FAIL: crashes on empty input', durationMs: 30_000, isAborted: false, turnId: 't', agentId: o, reason: 'answer' })
+  const texts = async (ui: { findAll: (q: { type: string }) => Promise<{ text: string }[]> }) =>
+    (await ui.findAll({ type: 'Text' })).map(t => t.text)
 
+  // The Coordinator's spawns name the plan by absolute path; nothing read the ledger with Read.
+  await spawn('karakam:worker-high', 'Worker step 08', `Apply ${PLAN}/steps/08.md, log ${PLAN}/logs/08.md`)
+  await spawn('karakam:worker-low', 'Worker step 03', `Apply ${PLAN}/steps/03.md`)
+  // A sub-agent reading some other progress.md changes nothing.
+  await $.tool.call({ tool: 'Read', file_path: '/home/a/repo/docs/karakam/old/progress.md', agentId: 'Worker step 08' } as never)
+  await $.turn.complete({
+    answer: 'done, checks passed', durationMs: 72_000, isAborted: false, turnId: 't', agentId: 'Worker step 03', reason: 'answer',
+    usage: { model: 'claude-sonnet-5-5', input_tokens: 1000, output_tokens: 3200, cache_read_input_tokens: 40000, cache_creation_input_tokens: 1600 },
+  } as never)
+  await spawn('karakam:observer-medium', 'Observer step 03', `Audit ${PLAN}/steps/03.md`)
+
+  let terminal: Awaited<ReturnType<typeof $.ui.mount>> | undefined
   for (const surface of ['terminal', 'desktop'] as const) {
-    const ui = await $.ui.mount({
-      plugin: 'karakam', surface, component: 'Pane', requestId: 'karakam',
-      props: { title: 'Karagöz', isFocused: false, bodyColumns: 80, placement: 'dock', scroll: { top: 0, bodyRows: 30 } as never, view: {} as never },
-    })
-    const compact = (await ui.findAll({ type: 'Text' })).map(t => t.text)
+    const ui = await $.ui.mount({ plugin: 'karakam', surface, component: 'Pane', requestId: 'karakam', props: PANE_PROPS })
+    if (surface === 'terminal') terminal = ui
+    const compact = await texts(ui)
     expect(compact.some(t => t.startsWith('01') && t.includes('✓✓○·✓·✓↻·✗'))).toBe(true)
-    expect(compact.some(t => t.includes('✓4 ↻1 ○1 ·3 ✗1'))).toBe(true)
-    expect(compact.some(t => t.includes('08') && t.includes('… worker opus high (refactor)'))).toBe(true)
+    expect(compact.some(t => t.includes('▶ 08 worker-high · sonnet'))).toBe(true)
+    expect(compact.some(t => t.includes('▶ 03 observer-medium'))).toBe(true)
     expect(compact.some(t => t.includes('10') && t.includes('blocked'))).toBe(true)
-    expect(compact.some(t => t.includes('03 ready'))).toBe(false)   // not moving: only in details
 
     await ui.press({ key: 'toggle' })
-    const texts = (await ui.findAll({ type: 'Text' })).map(t => t.text)
-    expect(texts.some(t => t.startsWith('01') && t.includes('✓ ✓ ○ · ✓ · ✓ ↻ · ✗'))).toBe(true)
-    expect(texts.some(t => t.includes('✓ 4 done') && t.includes('○ 1 ready') && t.includes('· 3 waiting') && t.includes('✗ 1 blocked'))).toBe(true)
-    expect(texts.some(t => t.includes('06 waiting') && t.includes('waits on 08'))).toBe(true)
-    expect(texts.some(t => t.includes('08 refactoring') && t.includes('critical'))).toBe(true)
-    expect(texts.some(t => t.includes('├ ✓ worker sonnet high') && t.includes('1m 12s'))).toBe(true)
-    expect(texts.some(t => t.includes('observer high · behavior') && t.includes('FAIL'))).toBe(true)
-    expect(texts.some(t => t.includes('└ … worker opus high (refactor)'))).toBe(true)
+    const full = await texts(ui)
+    expect(full.some(t => t.includes(`${PLAN}/progress.md`))).toBe(true)
+    expect(full.some(t => t.includes('06 waiting') && t.includes('waits on 08'))).toBe(true)
+    expect(full.some(t => t.includes('├ ✓ worker-low · sonnet') && t.includes('1m 12s') && t.includes('sonnet-5.5')
+      && t.includes('45.8k tokens (3.2k out)'))).toBe(true)
+    expect(full.some(t => t.includes('└ … observer-medium') && t.includes('sonnet-5.5'))).toBe(true)
     await ui.press({ key: 'toggle' })
   }
+
+  // The Coordinator marks 08 done from Bash: the pane follows the file, not the tool.
+  ledgerText = GRAPH.replace('| 08 | refactoring |', '| 08 | done |')
+  mtimeMs = 2
+  await $.tool.call({ tool: 'Bash', command: `sed -i 's/refactoring/done/' ${PLAN}/progress.md` } as never)
+  expect((await texts(terminal!)).some(t => t.startsWith('01') && t.includes('✓✓○·✓○✓✓○✗'))).toBe(true)
 })

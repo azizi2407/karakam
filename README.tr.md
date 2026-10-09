@@ -111,24 +111,25 @@ Tek bir Observer — **ikisinden hangisi olursa olsun** — bunun geçmesine izi
 
 ### İlerleme paneli
 
-Karagöz başladığında sağ üst köşede küçük bir panel açılır — tam ekran transkriptin sağına sabitlenmiş dar bir sütun (ana ekranda prompt'un üstünde). Adımlar sırayla bitmez — Karagöz bağımlılık grafiğinin izin verdiği adımı yürütür — bu yüzden panel her adıma bir hücre ayıran bir harita, her durumdan kaç adım olduğunu ve yalnızca hareket hâlindeki adımları o anki mikro-adımlarıyla gösterir:
+Karagöz başladığında sağ üst köşede küçük bir panel açılır — tam ekran transkriptin sağına sabitlenmiş dar bir sütun (ana ekranda prompt'un üstünde). Adımlar sırayla bitmez — Karagöz bağımlılık grafiğinin izin verdiği adımı yürütür — bu yüzden panel her adıma bir hücre ayıran bir harita, her durumdan kaç adım olduğunu ve şu an çalışan her alt-ajanı — adı, üzerinde çalıştığı adım ve ne zamandır çalıştığıyla — gösterir:
 
 ```
 01 ✓✓○·✓·✓↻·✗
 ✓4 ↻1 ○1 ·3 ✗1
-↻ 08 … worker opus high (re…
+▶ 03 observer-medium 41s
+▶ 08 worker-opus-high · r… 2m 5s
 ✗ 10 blocked
 details
 ```
 
-`✓` bitti, `▶` çalışıyor, `↻` refactor'da, `✗` bloklandı, `○` hazır (tüm bağımlılıkları bitti, hemen başlayabilir), `·` bekliyor. `d`'ye (ya da `details`'e) basınca tam liste açılır: her adım, bekleyenlerin neyi beklediği ve her adımın altında mikro-adımları olurken — her Worker ve Observer koşusu (model, effort, Observer'ın bakış açısı, sonuç, süre), Opus'taki refactor turları ve git checkpoint'i:
+`✓` bitti, `▶` çalışıyor, `↻` refactor'da, `✗` bloklandı, `○` hazır (tüm bağımlılıkları bitti, hemen başlayabilir), `·` bekliyor. `d`'ye (ya da `details`'e) basınca tam liste açılır: her adım, bekleyenlerin neyi beklediği ve her adımın altında mikro-adımları olurken — her Worker ve Observer koşusu (ajanı, Observer'ın bakış açısı, sonuç, süre, çalıştığı model ve harcadığı token), Opus'taki refactor turları ve git checkpoint'i:
 
 ```
 · 06 waiting · high · waits on 08
 ↻ 08 refactoring · high · critical — refactor 1/3 @opus-high
-  ├ ✓ worker sonnet high 1m 12s
-  ├ ✗ observer high · behavior FAIL 30s
-  └ … worker opus high (refactor)
+  ├ ✓ worker-high · sonnet 1m 12s · sonnet-5.5 · 45.8k tokens (3.2k out)
+  ├ ✗ observer-high · behavior FAIL 30s · opus-5.5 · 61.0k tokens (2.1k out)
+  └ … worker-opus-high · refactor · opus-5.5
 ```
 
 Bir Claude Code mod'u (`plugins/karakam/hooks/progress.tsx`): yalnızca izler — skill'ler onsuz da aynı çalışır. Kendiliğinden açıldığında panel en az 144 sütunluk bir terminal ister; `/karakam-progress` her genişlikte açar.
