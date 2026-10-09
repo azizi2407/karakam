@@ -134,3 +134,18 @@ Every step file the bench has, from the three fixed plans and Hacivat's runs: 56
 - **The run record sides with the referee where it exists.** In 1.3's `fifo` runs with Sonnet Workers at the plan's own efforts, step 05 at `medium` passed first time in 3 of 3 (Jev and Haiku: raise to `high`); step 06 at `medium` needed a refactor round in 1 of 3, on an edge case Opus Workers also missed.
 
 So the effort check adds a near-automatic bump to `high` on top of a rubric that already says "when in doubt, `high`". 1.7 drops it, with the rest of Jev: the lens check never skipped a lens in a real plan (p 0.31–0.47 against a 0.15 line), triage duplicated a decision the Opus Coordinator already makes, and the stop guard works as well on Haiku.
+
+### 1.8: `medium` as the default effort (`--step-effort medium`, 2 runs each)
+
+Every step forced to `medium` — the worst case for the new rubric, which keeps `high` for steps whose rules have tempting shortcuts — against 1.4's every-step-`high` runs.
+
+| Plan | 1.4, all `high` | 1.8, all `medium` | hidden tests | Opus refactor rounds (medium) |
+|---|---|---|---|---|
+| `stokcu` (3 steps) | $1.09–1.13 | $0.98–1.01 | 18/18 ×2 | 0 · 0 |
+| `refactor` (3 steps, planted spec fault) | $1.37–1.40 | $1.27–1.32 | 30/30 ×2 | 0 · 0 (the spec-fault round, as in 1.4, stays on the step's own Worker) |
+| `fifo` (6 steps, 2 critical) | $2.89–3.28 | $3.17–4.38 | 57/57 ×2 | 1 · 2 |
+| `hacivat` (new rubric) | $2.62 (5 steps: 4 high, 1 medium) | $3.01 (6 steps: 4 high, 1 medium, 1 low) | — | — |
+
+- **On well-specified steps `medium` is enough, and 7–10% cheaper.** Every hidden test passed; Worker spend fell by about a fifth.
+- **On steps with traps it isn't.** In `fifo`, step 02 (the FIFO ledger, critical) failed its first audit at `medium` in both runs and step 06 (the CLI, critical) in one; each went to an Opus Worker and passed, but the rounds made the plan 3–42% dearer than running it at `high`. These are exactly the steps the new rubric keeps at `high`: rules that interact, each with a tempting shortcut.
+- **Hacivat draws the line where it should.** With the new rubric it put the steps that hold the domain rules and the critical ones at `high`, a thin wrapper at `medium` and the scaffolding at `low`.
