@@ -10,8 +10,6 @@ Sometimes the step definition itself orders the wrong thing: the Worker follows 
 - The Worker reports that the criteria can't all be met within its `files_touched`.
 - On a critical step the two Observers disagree — one approves it as faithful to the spec, the other shows the real behavior is broken. That almost always means the spec is wrong.
 
-When the signs are mixed, get a second opinion: `python3 scripts/jev.py triage <plan-dir>/steps/NN.md <observer-report> <plan-dir>/logs/NN.md` (the report is a file path or the Observer's reply as text). Jev, a small model that answers typed questions with probabilities, prints `worker`, `spec` or `plan` with the probability of each. It only reads those three texts and runs nothing, so it doesn't decide alone: if it puts `spec` or `plan` above 0.6 while you were about to refactor, re-read the Observer's evidence against the step file before you spend the round. If it prints `jev unavailable`, decide without it.
-
 Handing the same broken spec to another Worker, at any effort, produces the same result and burns a round. Instead:
 
 - **Within one step you may fix the spec.** Edit the faulty instruction in `steps/NN.md` minimally, grounded in the evidence, then send the refactor round to the step's own Worker, `karakam:worker-<effort>` (the problem was the spec, not the Worker). Record the fix in the `progress.md` note — the plan never changes silently.

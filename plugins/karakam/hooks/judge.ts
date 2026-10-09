@@ -1,9 +1,5 @@
-// Pure helpers for the Worker stop guard: the question asked, how Jev's and
-// Haiku's answers are read, and when a stop is sent back.
-
-export const JEV_URL = 'https://api.typesafe.ai/v1/systemone'
-
-export type Backend = 'jev' | 'haiku' | 'off'
+// Pure helpers for the Worker stop guard: the question Haiku is asked, how its
+// answer is read, and when a stop is sent back.
 
 // The guard judges only first-pass and refactor Workers, never Observers or critics.
 export const isWorker = (agentType: string): boolean => /^(karakam:)?worker-/.test(agentType)
@@ -25,34 +21,7 @@ export const SEND_BACK =
   'announced now, run the checks, then reply with done / not done, whether the checks passed, files ' +
   'touched, and the log path. If something outside files_touched genuinely blocks you, say what and stop.'
 
-export function pickBackend(judge: string | undefined, key: string | undefined): Backend {
-  const asked = judge?.trim().toLowerCase()
-  if (asked === 'off' || asked === 'haiku') return asked
-  return key ? 'jev' : 'haiku'
-}
-
-export function jevBody(reply: string): string {
-  return JSON.stringify({
-    model: 'jev-latest',
-    state: reply.slice(-20_000),
-    questions: { early: { type: 'noul', instructions: EARLY_STOP, criteria: CRITERIA } },
-  })
-}
-
-// `{ answers: { early: { type: 'noul', noul: 0.93 } } }`, or the field under another name.
-export function readJev(text: string): number | undefined {
-  try {
-    const a = (JSON.parse(text) as { answers?: Record<string, unknown> }).answers?.early
-    if (typeof a === 'number') return a
-    if (a && typeof a === 'object') {
-      for (const k of ['noul', 'probability', 'value']) {
-        const v = (a as Record<string, unknown>)[k]
-        if (typeof v === 'number') return v
-      }
-    }
-  } catch { /* unreadable: no judgment */ }
-  return undefined
-}
+export const isOff = (judge: string | undefined): boolean => judge?.trim().toLowerCase() === 'off'
 
 export function haikuPrompt(reply: string): string {
   return `${EARLY_STOP}\n\nYes means: ${CRITERIA.true}\nNo means: ${CRITERIA.false}\n\n` +
