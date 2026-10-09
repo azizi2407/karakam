@@ -89,3 +89,17 @@ The default scenario's plan is deliberately well specified — no version measur
 - **Sonnet at `high` costs less than Opus at `low`/`medium`.** Worker spend was $0.18–0.26 on the three-step plans and $0.63–0.74 on `fifo`, against $0.33–0.56 and $1.12–1.69 for Opus Workers in 1.3; no extra rounds.
 - **The ladder reaches Opus.** With the sloppy first pass, one run's Observer passed the sloppy step anyway (its code was right; the report called its tests thin), the other sent it to `worker-opus-high`, which passed. The spec-fault round stayed on the step's own Worker.
 - **Hacivat applies the rubric.** 4 of 5 steps at `high`, one at `medium`.
+
+### 1.6: Worker stop guard (`stokcu`, `--step-effort high`, 2 runs each)
+
+`--early-stop worker-high` makes every Worker stop after writing the code, on a progress summary that announces the checks as its next action. `--judge` sets `KARAKAM_JUDGE` for the run; Jev itself couldn't be reached from the bench machine, so the guard judged with Haiku.
+
+| Arm | Cost | Coordinator turns | Sent back by the guard | Hidden tests |
+|---|---|---|---|---|
+| early stop, no guard (`--judge off`) | $1.31–1.45 | 24–26 | 0 (Coordinator resumed each Worker with SendMessage) | 18/18 |
+| early stop, guard (`--judge haiku`) | $1.09–1.15 | 12–13 | 3 of 3 | 18/18 |
+| clean Workers, guard (`--judge haiku`) | $1.07–1.09 | 13–14 | 0 of 3 | 18/18 |
+
+- **The guard pays for itself many times over.** Haiku cost $0.0003 a run; the Coordinator turns it saved cost about $0.27.
+- **No false alarms in this sample.** None of the 6 clean Worker stops was sent back.
+- **Without it, Opus does the chasing.** The Coordinator noticed every half-finished reply and resumed the Worker itself — correct, but on Opus, in the context that has to stay small.

@@ -48,6 +48,8 @@ How to write the steps so the run goes well is below, under "Writing steps that 
 
 Four critics review the plan in parallel, each through one lens: architectural coherence, stack/library correctness, step ordering & dependencies, risk/omission detection. Spawn them as `karakam:critic` agents, all four in a single message. Lenses, the message to send, and the hill-climb rules: `references/critic-panel.md`.
 
+Before round 1, `python3 scripts/jev.py lenses <plan-dir>` says whether the two optional lenses — stack/library correctness and step ordering — have anything to judge in this plan; a lens it marks `skip in round 1` is left out of round 1 (details in `references/critic-panel.md`). If it prints `jev unavailable`, run all four.
+
 A panel round costs real money (see "Cost" in `references/critic-panel.md`). On a large autonomous job that's cheap next to hours of wrong output; on a small job one round is enough. If the user has said cost matters, ask before spending an extra round.
 
 ### 4. Refine by hill-climbing
@@ -64,6 +66,8 @@ Fix with `Edit` on the affected files; regenerating the plan from scratch is the
 If the output directory already exists and its `progress.md` shows any step that isn't `pending`, a previous run made real progress there — don't overwrite it; ask the user whether to archive it (e.g. to `plan-old-1/`) or use another path. An empty directory, or one whose ledger is still all `pending`, is safe to overwrite.
 
 Build the `progress.md` skeleton (every step `pending`) and check that `effort` and `critical` agree between each step file and its ledger row (`critical: true` in the step file is `yes` in the ledger).
+
+Then get a second opinion on the efforts: `python3 scripts/jev.py effort <plan-dir>` (in this skill's base directory). It prints a line per step — `keep`, `raise to high`, or `lower to <level>` — see "Effort and criticality". If it prints `jev unavailable`, skip it.
 
 ### 6. Present and hand over
 
@@ -117,6 +121,12 @@ Workers run on Sonnet 5.5; you set how hard each one thinks. Effort decides how 
 - **low** — mechanical work: a rename across files, a config or version change, a known pattern applied verbatim.
 
 When in doubt, `high`. Sonnet's tokens cost half of Opus's, so thoroughness on the first pass is cheaper than a refactor round.
+
+`jev.py effort` asks TypeSafe's Jev, a small model that answers typed questions with probabilities, which of these three levels each step file reads as. It only sees the step file, so weigh it; don't obey it blindly:
+- **`raise to high`** — you chose low or medium and Jev gives `high` at least even odds. Raise it unless you can name why the step is mechanical; a wrong low costs a refactor round on Opus.
+- **`lower to <level>`** — you chose high for a non-critical step and Jev is near sure (≥ 0.85) it's simpler. Lower it if the step file really is fully specified; otherwise keep high.
+
+Update both the step file and its ledger row when you change an effort.
 
 Don't move Workers to another model on your own; use Fable only if the user asks for it (see the handoff above).
 

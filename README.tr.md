@@ -134,6 +134,18 @@ details
 
 Bir Claude Code mod'u (`plugins/karakam/hooks/progress.tsx`): yalnızca izler — skill'ler onsuz da aynı çalışır. Kendiliğinden açıldığında panel en az 144 sütunluk bir terminal ister; `/karakam-progress` her genişlikte açar.
 
+### İsteğe bağlı Jev yargıcı
+
+Bazı kararlar düzyazı değil, kalibre edilmiş bir evet, hayır ya da seçim ister. `TYPESAFE_API_KEY` tanımlıysa karakam beş noktada TypeSafe'in [Jev](https://docs.typesafe.ai) modeline sorar — tipli sorulara olasılıkla cevap veren, kuruşun altında maliyetli bir model. Anahtar yoksa Worker stop guard Haiku ile çalışır, diğer dördü atlanır; `KARAKAM_JUDGE=off` hepsini kapatır.
+
+- **Worker stop guard.** Bir Worker nihai rapor yerine bir ara özetle ("sıradaki adımda CLI'yı bağlayacağım…") durursa, guard onu bir kez geri gönderir ve işi aynı context içinde bitirtir; adımın denetimden kalmasına ya da Koordinatörün onu sürdürmek için tur harcamasına izin vermez. Jev anahtarı yoksa kendi oturumun üzerinden Haiku ile yargılar; karar başına yaklaşık $0.0001.
+- **Effort için ikinci görüş.** Hacivat planı yazdıktan sonra `jev.py effort` çalıştırır: low ya da medium verdiği ama Jev'in büyük olasılıkla `high` gördüğü adım yükseltilir; Jev'in daha basit olduğundan neredeyse emin olduğu kritik olmayan bir `high` adım düşürülebilir.
+- **Critic lensleri.** İlk panel turundan önce `jev.py lenses`, stack/library ve adım sırası lenslerinin bu planda yargılayacak bir şeyi olup olmadığına bakar; bakacak bir şeyi olmayan lens 1. turda yer almaz.
+- **Hata ayrımı.** Bir Observer FAIL'i Worker'ın da spec'in de hatası olabiliyorsa, Koordinatör bir tur harcamadan önce `jev.py triage` ikinci görüş verir.
+- **Bench puanlaması.** Bench'in hacivat modunda `jev.py rubric` her planı kontrata göre puanlar (kendi kendine yeten adımlar, çalıştırılabilir kriterler, seeding kestirmesi olmaması, çağıran üzerinden geçen kontroller, ayrık paralel dosyalar, dürüst sınırlar).
+
+Jev yalnızca metin okur ve hiçbir şey çalıştırmaz, bu yüzden bir Observer'ın yerini asla almaz: skill'in tarttığı bir tavsiyedir ve ona ulaşılamazsa koşu onsuz devam eder.
+
 ### Akıllı devam
 
 Bir adım refactor turlarından sonra da geçemezse, loop seni bekleyip durmaz. Adım `blocked` olarak işaretlenir, ona bağımlı olan her şey bekler, bağımsız işler devam eder. Yapacak bir şey kalmadığında (ya da plan grafiğinde bir döngü/kilitlenme varsa) loop kendini kapatır ve sana neyin `done`, neyin `blocked` olduğunun ve nedeninin özetini bırakır.
@@ -161,6 +173,7 @@ Tahmin değil, ölçüm. [`plugins/karakam/evals/bench`](plugins/karakam/evals/b
 - **Zayıf bir Worker'ın yerine daha güçlüsü gelir.** İlk Worker kasten özensiz bir geçişle değiştirildiğinde Observer her seferinde reddetti ve sonraki Worker geçti. 1.2 onu bir kademe yukarı gönderiyordu (`low → medium`, ~$0.30 fazla); 1.3 doğrudan `high`'a çıkıyor (`low → high`) ve toparlanma ~$0.20 tuttu. 1.4'te tekrar deneme Opus'a gidiyor (`high → opus-high`).
 - **Low effort'taki Opus'un buna nadiren ihtiyacı oluyor.** Kuralları birbiriyle etkileşen (Türkçe büyük/küçük harf, Unicode normalizasyonu, aksan duyarlılığı — her yanlış kestirme gizli testlerde kalıyor) `low` etiketli bir adım 6 koşunun 6'sında ilk geçişte çözüldü.
 - **Sonnet 5.5 Worker'lar da geçti, daha ucuza.** Tüm Worker'lar Sonnet 5.5'e alındığında (Observer'lar hâlâ Opus'ta) zor koşu iki koşuda da 30/30 geçti; Opus Worker'larla $1.66'ya karşı $1.28. Daha büyük bir planda — FIFO stok maliyetlendirmesinin altı adımı; her kuralın, 57 gizli testin yakaladığı cazip bir kestirmesi var — Sonnet Worker'lar 3 koşunun 3'ünde 57/57 geçti, $2.63–3.40'a; Opus Worker'lar da 57/57, $3.32–5.32'ye. Refactor turu artmadı; Worker harcaması $1.12–1.69'a karşı $0.40–0.52. 1.4 ile Sonnet 5.5 varsayılan Worker oldu; bench'in `--worker-model opus` seçeneği karşılaştırmayı yeniden koşar.
+- **Yarıda duran Worker kovalanmıyor, geri gönderiliyor.** Her Worker kodu yazdıktan sonra bir ara özetle duracak şekilde ayarlandığında, Koordinatör bunu her seferinde fark edip Worker'ı kendisi sürdürdü: 3 devam ettirme, yaklaşık iki kat Koordinatör turu, $1.31–1.45. 1.6'nın stop guard'ıyla (Haiku yargıcı) Worker'lar Koordinatör görmeden geri gönderildi: $1.09–1.15, temiz bir koşuyla aynı ($1.07–1.09); Haiku'nun koşu başına maliyeti $0.0003. 6 temiz Worker duruşunun hiçbirini geri göndermedi; her koşu 18/18 geçti.
 - **Başarısız bir checkpoint artık işi kaybettirmiyor.** Büyük koşulardan birinde bir adım denetimden geçti ama commit'i imza zaman aşımına düştü; Koordinatörün elle zincirlediği commit–merge–temizlik komutları worktree'yi yine de sildi. 1.3 paralel adımları `stepgit.sh land` ile indiriyor: başarısız commit ya da merge'ü bir kez yeniden deniyor, worktree'yi ancak merge başarılı olduktan sonra siliyor.
 
 **Adım başına beklenti:** küçük ve iyi tanımlanmış bir adım baştan sona yaklaşık **$0.3–0.5**, daha büyüğü ~$1'a kadar, kritik bir adım (high effort'ta iki Observer) bunun yaklaşık iki katı; her refactor turu bir Worker ve bir Observer koşusu daha ekler. Hacivat bunu başlamadan önce senin planın için bir aralığa çevirir.
@@ -170,7 +183,8 @@ Bunlar küçük, sabit görevler — göreli maliyeti ve toparlanmanın çalış
 ## Gereksinimler
 
 - Alt-ajan (Agent tool) erişimi olan Claude Code, Opus ve Sonnet. Fable yalnızca sen istersen kullanılır.
-- İlerleme paneli için: function hook (mod) destekleyen bir Claude Code sürümü.
+- İlerleme paneli ve Worker stop guard için: function hook (mod) destekleyen bir Claude Code sürümü.
+- İsteğe bağlı: Jev yargıcı için bir TypeSafe API anahtarı (`TYPESAFE_API_KEY`).
 - Sunucuda uzun otonom koşular için `tmux`/`screen` içinde çalıştır — `/loop` oturumda yaşar ve SSH bağlantın kesildiğinde o da ölür.
 
 ## Dil

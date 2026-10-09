@@ -19,10 +19,15 @@ critic-panel size and the resulting plan.
   python3 run.py hacivat --label baseline --runs 2
   python3 run.py report
 
+--judge haiku|jev turns on the Worker stop guard (KARAKAM_JUDGE) and
+--early-stop worker-high makes the Workers stop half-way, to measure it. In
+hacivat mode, with TYPESAFE_API_KEY set, Jev also grades the plan (rubric).
+
 Results land in results/<mode>/<label>/run-N/ (git-ignored).
 """
 import argparse
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -43,6 +48,9 @@ LEGACY_MODEL = {"low": "haiku", "medium": "sonnet", "high": "opus"}
 SHIFT_DOWN = {"low": "low", "medium": "low", "high": "medium"}
 # set from the command line: main-session effort, as the handoff pins it
 MAIN_EFFORT = "medium"
+JUDGE = "off"
+# the stop guard's message to a Worker it sends back (hooks/judge.ts SEND_BACK)
+SENT_BACK = "Your reply ends before the step is finished"
 
 KARAGOZ_PROMPT = (
     "karagoz: ./plan/ içindeki planı uygula. "
@@ -91,6 +99,24 @@ def inject_fault(plugin, agent):
     f = plugin / "agents" / f"{agent}.md"
     head = f.read_text(encoding="utf-8").split("---", 2)
     f.write_text(f"---{head[1]}---\n\n{SLOPPY}", encoding="utf-8")
+
+
+# A Worker that stops half-way on a progress summary — what the stop guard catches.
+EARLY_STOP = """
+
+## Bench override
+
+Work in two turns. In this turn write the implementation only, then end your reply
+with a short progress summary and the next action you will take (writing and
+running the checks). Write the checks and run them only once you are told to
+continue. This overrides "Finish the step in this one turn" above.
+"""
+
+
+def inject_early_stop(plugin, agent):
+    """Make one agent stop on a progress summary after the implementation."""
+    f = plugin / "agents" / f"{agent}.md"
+    f.write_text(f.read_text(encoding="utf-8") + EARLY_STOP, encoding="utf-8")
 
 
 def use_worker_model(plugin, model):
@@ -147,7 +173,8 @@ def claude(prompt, cwd, plugin, model, session=None, budget=15.0, timeout=3600):
     if session:
         cmd += ["--resume", session]
     t0 = time.time()
-    p = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+    p = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout,
+                       env={**os.environ, "KARAKAM_JUDGE": JUDGE})
     try:
         data = json.loads(p.stdout)
     except json.JSONDecodeError:
@@ -234,12 +261,22 @@ def run_hacivat(run_dir, plugin, model):
     (run_dir / "session.json").write_text(json.dumps(d, indent=1))
     plan = proj / "plan"
     return {
+        "rubric": plan_rubric(plugin, plan),
         "cost": d.get("total_cost_usd", 0), "turns": d.get("num_turns"),
         "wall_s": d["_wall_s"], "error": d.get("is_error"),
         "steps": len(list((plan / "steps").glob("*.md"))) if plan.exists() else 0,
         "ledger": ledger(proj),
         "result": (d.get("result") or "")[-1500:],
     }
+
+
+def plan_rubric(plugin, plan):
+    """Jev's yes-probability per plan-quality check, or None without Jev."""
+    if not plan.exists():
+        return None
+    p = subprocess.run([sys.executable, str(plugin / "skills" / "hacivat" / "scripts" / "jev.py"),
+                        "rubric", str(plan)], capture_output=True, text=True, timeout=120)
+    return json.loads(p.stdout) if p.returncode == 0 else None
 
 
 def model_costs(run_dir):
@@ -327,8 +364,9 @@ def agent_list(proj):
     for meta in tdir.rglob("subagents/*.meta.json"):
         m = json.loads(meta.read_text())
         cost, turns, first, effort, model = 0.0, 0, None, None, m.get("model")
-        msgs = {}
+        msgs, sent_back = {}, 0
         for line in meta.with_suffix("").with_suffix(".jsonl").read_text().splitlines():
+            sent_back += SENT_BACK in line
             d = json.loads(line)
             first = first or d.get("timestamp")
             g = d.get("message") or {}
@@ -351,7 +389,7 @@ def agent_list(proj):
         out.append({"t": first, "type": m.get("agentType"), "role": role_of(desc, m.get("agentType", "")),
                     "desc": desc, "step": step.group(1).zfill(2) if step else None,
                     "model": (model or "").replace("claude-", ""), "effort": effort,
-                    "turns": len(msgs), "cost": round(cost, 4)})
+                    "turns": len(msgs), "cost": round(cost, 4), "sent_back": sent_back})
     return sorted(out, key=lambda a: a["t"] or "")
 
 
@@ -390,7 +428,9 @@ def refactor_line(r):
             steps.setdefault(a["step"], []).append(tag.replace("worker-", ""))
     parts = [f"{s}: {'→'.join(w)}" for s, w in sorted(steps.items())]
     extra = sum(len(w) - 1 for w in steps.values())
-    return (f"  workers per step: {'; '.join(parts)}  (refactor rounds: {extra})\n"
+    back = sum(a.get("sent_back", 0) for a in r.get("agents", []))
+    return (f"  workers per step: {'; '.join(parts)}  (refactor rounds: {extra}, "
+            f"sent back by the stop guard: {back})\n"
             f"  spec edits: {r.get('spec_edits') or '-'}  notes: {r.get('notes')}")
 
 
@@ -411,7 +451,7 @@ def report():
                              f"{r['hidden_tests']['passed'] + r['hidden_tests']['failed']}"
                              f" commits={r['commits']}")
                 else:
-                    extra = f" steps={r['steps']} turns={r['turns']}"
+                    extra = f" steps={r['steps']} turns={r['turns']} rubric={r.get('rubric')}"
                 roles = ", ".join(f"{k}=${v['cost']:.2f}/{v['calls'] or v['turns']}"
                                   for k, v in sorted(r.get("by_role", {}).items()))
                 print(f"- run {i}: ${r['total_cost']:.2f}, {r['wall_total_s']:.0f}s,{extra}\n"
@@ -435,6 +475,9 @@ def main():
     ap.add_argument("--inject-fault", metavar="AGENT",
                     help="replace this agent's prompt with a sloppy first pass "
                          "(e.g. worker-low) to exercise the refactor ladder")
+    ap.add_argument("--early-stop", metavar="AGENT",
+                    help="make this agent (e.g. worker-high) stop half-way on a progress "
+                         "summary, to exercise the Worker stop guard")
     ap.add_argument("--effort", default="medium", choices=["low", "medium", "high", "xhigh", "max"],
                     help="main-session effort (the handoff pins medium)")
     ap.add_argument("--effort-shift-down", action="store_true",
@@ -444,11 +487,15 @@ def main():
     ap.add_argument("--worker-model", metavar="MODEL",
                     help="run the first-pass Workers on this model (e.g. opus); "
                          "refactor-round Workers keep theirs")
+    ap.add_argument("--judge", default="off", choices=["off", "haiku", "jev"],
+                    help="KARAKAM_JUDGE for the run: the Worker stop guard's judge "
+                         "(jev also needs TYPESAFE_API_KEY)")
     ap.add_argument("--legacy-plan", action="store_true",
                     help="karagoz only: convert the plan to the pre-1.2 model-column contract")
     a = ap.parse_args()
-    global MAIN_EFFORT
+    global MAIN_EFFORT, JUDGE
     MAIN_EFFORT = a.effort
+    JUDGE = a.judge
     if a.mode == "report":
         return report()
     if a.mode == "reanalyze":
@@ -464,6 +511,8 @@ def main():
     snapshot_plugin(plugin, a.plugin_ref)
     if a.inject_fault and fresh:
         inject_fault(plugin, a.inject_fault)
+    if a.early_stop and fresh:
+        inject_early_stop(plugin, a.early_stop)
     if a.worker_model and fresh:
         use_worker_model(plugin, a.worker_model)
     with ThreadPoolExecutor(a.runs) as ex:
