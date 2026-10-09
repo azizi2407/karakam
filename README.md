@@ -62,7 +62,7 @@ Four roles:
 | **Creator (Hacivat)** | Clarify → plan → critic panel → hill-climb → handoff files. Talks to you. | Your session (Opus) |
 | **Critic** | Reviews the plan through one of four lenses. | `karakam:critic` — Opus, medium effort |
 | **Coordinator (Karagöz)** | One tick = the currently runnable step(s) to `done`. Picks them, sends the Workers, calls the Observers, updates the ledger. Writes no code. | Your session (Opus, medium effort) |
-| **Worker** | Executes one step, test-first. Writes a short log. | `karakam:worker-<effort>` — Sonnet 5.5, at the effort Hacivat set for the step (`high` by default); refactor rounds: `worker-opus-high`, then `worker-opus-xhigh` |
+| **Worker** | Executes one step, test-first. Writes a short log. | `karakam:worker-<effort>` — Sonnet 5.5, at the effort Hacivat set for the step (`medium` by default); refactor rounds: `worker-opus-high`, then `worker-opus-xhigh` |
 | **Observer** | Audits the step adversarially — runs the checks itself, tries to refute it. | `karakam:observer-medium`; two `observer-high` on critical steps |
 
 Every sub-agent is a plugin agent (`plugins/karakam/agents/`), so its protocol, tools, model and effort live in its definition rather than being re-typed by the Coordinator on every call. Workers write code on Sonnet 5.5, at `high` effort unless a step is mechanical; the Observers that audit them, the critics and the Coordinator run on Opus. When a step fails its audit, the retry goes to a stronger model, not just more thinking: an Opus Worker at `high`, then at `xhigh`. Fable is never used unless you ask for it.

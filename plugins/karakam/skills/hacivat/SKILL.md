@@ -112,11 +112,11 @@ Karagöz spins for hours only if every tick stays small, and you set that up now
 
 Workers run on Sonnet 5.5; you set how hard each one thinks. Effort decides how much reasoning and how many tool calls the Worker spends per turn. A step that fails its audit is redone by an Opus Worker — Karagöz does that on its own.
 
-- **high** — the default: a module, an endpoint, a schema, cross-layer work, anything with rules that interact or a design decision to make.
-- **medium** — a small change whose shape is obvious and fully specified: a new field threaded through a known path, a thin wrapper over an existing function.
+- **medium** — the default: a module, an endpoint, a schema or a command whose shape and rules the step file spells out.
+- **high** — a step where a first pass is likely to go wrong: rules that interact or each have a tempting shortcut (money and rounding, dates, ordering, parsing untrusted input, concurrency, security), a design decision the step leaves to the Worker, or a change that cuts across layers.
 - **low** — mechanical work: a rename across files, a config or version change, a known pattern applied verbatim.
 
-When in doubt, `high`. Sonnet's tokens cost half of Opus's, so thoroughness on the first pass is cheaper than a refactor round.
+Ask what a first pass could get wrong. If you can name the trap and the step file already closes it with an explicit rule and a check, `medium` is enough; if the Worker has to find it, `high`.
 
 Don't move Workers to another model on your own; use Fable only if the user asks for it (see the handoff above).
 
