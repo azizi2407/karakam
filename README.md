@@ -111,24 +111,25 @@ A single Observer — **either one of them** — would have let that through.
 
 ### Progress pane
 
-When Karagöz starts, a small pane opens in the top-right corner — a narrow column docked to the right of the fullscreen transcript (above the prompt on the main screen). Steps don't finish in order — Karagöz runs whatever the dependency graph allows — so it shows a map with one cell per step, how many are in each state, and only the steps in motion with their current micro-step:
+When Karagöz starts, a small pane opens in the top-right corner — a narrow column docked to the right of the fullscreen transcript (above the prompt on the main screen). Steps don't finish in order — Karagöz runs whatever the dependency graph allows — so it shows a map with one cell per step, how many are in each state, and every sub-agent running right now — by name, the step it works on, and for how long:
 
 ```
 01 ✓✓○·✓·✓↻·✗
 ✓4 ↻1 ○1 ·3 ✗1
-↻ 08 … worker opus high (re…
+▶ 03 observer-medium 41s
+▶ 08 worker-opus-high · r… 2m 5s
 ✗ 10 blocked
 details
 ```
 
-`✓` done, `▶` running, `↻` refactoring, `✗` blocked, `○` ready (every dependency done, it can start now), `·` waiting. Press `d` (or `details`) for the full list: every step, what each waiting one waits on, and under each step its micro-steps as they happen — every Worker and Observer run (model, effort, Observer lens, verdict, how long it took), refactor rounds on Opus, and the git checkpoint:
+`✓` done, `▶` running, `↻` refactoring, `✗` blocked, `○` ready (every dependency done, it can start now), `·` waiting. Press `d` (or `details`) for the full list: every step, what each waiting one waits on, and under each step its micro-steps as they happen — every Worker and Observer run (its agent, Observer lens, verdict, how long it took, the model it ran on and the tokens it used), refactor rounds on Opus, and the git checkpoint:
 
 ```
 · 06 waiting · high · waits on 08
 ↻ 08 refactoring · high · critical — refactor 1/3 @opus-high
-  ├ ✓ worker sonnet high 1m 12s
-  ├ ✗ observer high · behavior FAIL 30s
-  └ … worker opus high (refactor)
+  ├ ✓ worker-high · sonnet 1m 12s · sonnet-5.5 · 45.8k tokens (3.2k out)
+  ├ ✗ observer-high · behavior FAIL 30s · opus-5.5 · 61.0k tokens (2.1k out)
+  └ … worker-opus-high · refactor · opus-5.5
 ```
 
 It is a Claude Code mod (`plugins/karakam/hooks/progress.tsx`): it only watches — the skills run the same without it. Opened on its own, the pane needs a terminal at least 144 columns wide; `/karakam-progress` opens it at any width.

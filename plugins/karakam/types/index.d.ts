@@ -19,7 +19,14 @@ export type KarakamMicro = {
   kind: 'worker' | 'observer' | 'git'
   label: string
   status: 'running' | 'pass' | 'fail' | 'done'
+  /** When it started, from `$.clock.now()`: running ones show their elapsed time. */
+  startedAt?: number
   ms?: number
+  /** The model it ran on (a sub-agent's, resolved at spawn). */
+  model?: string
+  /** Tokens it processed (input, cache reads and writes, output), and output alone. */
+  tokens?: number
+  outTokens?: number
 }
 
 /** The ledger last read: where it is and its rows. */

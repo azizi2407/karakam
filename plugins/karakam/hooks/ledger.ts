@@ -43,14 +43,14 @@ export function classifySpawn(
   const m = /^karakam:(worker|observer)-(.+)$/.exec(subagentType)
   const step = stepOf(prompt, description)
   if (!m || !step) return undefined
+  // The label leads with the agent's own name, as Claude Code's task list shows it.
   const [, role, variant = ''] = m
+  const name = `${role}-${variant}`
   if (role === 'worker') {
-    const opus = variant.startsWith('opus-')
-    const effort = opus ? variant.slice(5) : variant
-    return { step, kind: 'worker', label: `worker ${opus ? 'opus' : 'sonnet'} ${effort}${opus ? ' (refactor)' : ''}` }
+    return { step, kind: 'worker', label: variant.startsWith('opus-') ? `${name} · refactor` : `${name} · sonnet` }
   }
   const lens = /\b(behavior|integrity)\b/i.exec(`${description} ${prompt}`)
-  return { step, kind: 'observer', label: `observer ${variant}${lens?.[1] ? ` · ${lens[1].toLowerCase()}` : ''}` }
+  return { step, kind: 'observer', label: `${name}${lens?.[1] ? ` · ${lens[1].toLowerCase()}` : ''}` }
 }
 
 /** How a finished micro-step went, from the sub-agent's final answer. */
@@ -93,4 +93,32 @@ export function stateOf(step: KarakamStep, steps: readonly KarakamStep[]): StepS
 /** The steps this one still waits for. */
 export function openDeps(step: KarakamStep, steps: readonly KarakamStep[]): string[] {
   return step.dependsOn.filter(d => steps.find(s => s.id === d)?.status !== 'done')
+}
+
+/** A ledger as Hacivat writes it: the table header naming step and status, and at least one step row. */
+export function isLedger(text: string): boolean {
+  return /^\|\s*step\s*\|\s*status\s*\|/m.test(text) && parseLedger(text).length > 0
+}
+
+/**
+ * The plan directories a text names by absolute path: the parent of a
+ * `steps/NN.md`, or the folder of a `progress.md`. The Coordinator hands
+ * every sub-agent absolute step paths, so its spawns name the plan.
+ */
+export function planDirsIn(text: string): string[] {
+  const dirs = new Set<string>()
+  for (const m of text.matchAll(/(\/[^\s'"`|;&()<>]*?)\/(?:steps\/\d+\.md|progress\.md)\b/g)) {
+    if (m[1] && !m[1].includes('/.worktrees/')) dirs.add(m[1])
+  }
+  return [...dirs]
+}
+
+/** `61.2k`, `840`. */
+export function tokens(n: number): string {
+  return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n)
+}
+
+/** `claude-sonnet-5-5` → `sonnet-5.5`. */
+export function shortModel(model: string): string {
+  return model.replace(/^claude-/, '').replace(/-(\d+)-(\d+)$/, '-$1.$2')
 }
