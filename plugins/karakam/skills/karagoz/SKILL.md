@@ -2,8 +2,9 @@
 name: karagoz
 description: >-
   Use ONLY when "karagoz" is named: the user types "/karagoz", or runs the command
-  Hacivat handed them ("karagoz: execute the plan in ./project/plan/", or its
-  equivalent in their language), which arrives on every tick under /loop and
+  Hacivat handed them ("karagoz:parallel-low execute the plan in ./project/plan/",
+  or its equivalent in their language; the word after "karagoz:" is the run
+  mode), which arrives on every tick under /loop and
   therefore triggers this skill naturally for the whole run. Do NOT trigger on your
   own: even if a plan directory is sitting right there and the user says "apply
   this" or "pick up where it left off", do not open this skill unless karagoz is
@@ -48,8 +49,18 @@ Read `<plan-dir>/progress.md`.
 
 ### 2. Send the Workers
 
-- **One eligible step** → it runs in the project root.
-- **Several** → get their `files_touched` lines in one call (`grep -H '^files_touched:' <plan-dir>/steps/NN.md …`). Take them in step order, skipping any whose list overlaps one already taken; the skipped ones wait for a later tick (an overlap is a dependency Hacivat missed — say so in the note). One step taken → it runs in the project root. Several → they run as a parallel batch, each in its own git worktree: follow `references/parallel.md`.
+The run mode is the word right after `karagoz:` in the prompt that started this tick, and it caps how many steps a tick takes:
+
+| Mode | Steps per tick |
+|---|---|
+| `single` | 1 |
+| `parallel-low` | up to 2 |
+| `parallel-high` | up to 4 |
+
+No mode in the prompt (a handoff from before 1.9, or a bare `/karagoz`) → `parallel-high`. A non-git project runs `single` whatever the mode, since a parallel batch needs worktrees.
+
+- **One eligible step, or mode `single`** → take the first eligible step in step order; it runs in the project root.
+- **Several** → get their `files_touched` lines in one call (`grep -H '^files_touched:' <plan-dir>/steps/NN.md …`). Take them in step order, up to the mode's cap, skipping any whose list overlaps one already taken; the skipped ones wait for a later tick (an overlap is a dependency Hacivat missed — say so in the note). One step taken → it runs in the project root. Several → they run as a parallel batch, each in its own git worktree: follow `references/parallel.md`.
 
 Mark the batch `in_progress` in one edit, then spawn — all Workers of a batch in a single message:
 

@@ -46,10 +46,10 @@ To hand over:
 2. /model opus                 (skip if the session is already on Opus)
 3. /effort medium
 4. /autocompact 150k
-5. /loop 20m karagoz: execute the plan in ./my-project/plan/
+5. /loop 20m karagoz:parallel-low execute the plan in ./my-project/plan/
 ```
 
-Commit first (in a git project): Karagöz checkpoints every finished step with git and reverts a failed one on its own files, so it has to start from a clean tree — commit your own changes yourself rather than with a blanket `git add -A`, which would sweep in stray files too. `/clear` matters — the execution phase must start on a fresh context, and that fresh start is also the one moment where switching model, effort or compaction settings costs nothing. `/effort medium` pins the Coordinator — your session, 30–40% of the execution bill — to the effort it was measured at; the session otherwise keeps whatever effort you last set, and a leftover `xhigh` would pay for deep thinking on mechanical ledger work every turn. The sub-agents' effort lives in their own definitions. The `/autocompact` window is sized to the plan — 150k–250k depending on how many steps run in parallel. Claude Code's default for Opus 5.5 is 1M tokens, which would let the loop's conversation, resent on every turn, grow for hours; a smaller window caps that, while leaving room for several ticks between compactions (compaction fires ~33K below the window, and a session starts at ~35–50K before any work). On an API key, drop the interval (`/loop karagoz: …`): the prompt cache lives five minutes there, and a 20-minute gap would re-write the whole conversation on every tick. Then Karagöz takes over and works through the plan on its own, closing the loop when the job is done.
+Commit first (in a git project): Karagöz checkpoints every finished step with git and reverts a failed one on its own files, so it has to start from a clean tree — commit your own changes yourself rather than with a blanket `git add -A`, which would sweep in stray files too. `/clear` matters — the execution phase must start on a fresh context, and that fresh start is also the one moment where switching model, effort or compaction settings costs nothing. `/effort medium` pins the Coordinator — your session, 30–40% of the execution bill — to the effort it was measured at; the session otherwise keeps whatever effort you last set, and a leftover `xhigh` would pay for deep thinking on mechanical ledger work every turn. The sub-agents' effort lives in their own definitions. The word after `karagoz:` is the run mode Hacivat picked for the plan (see [Parallelism on independent steps](#parallelism-on-independent-steps)); change it if you want. The `/autocompact` window is sized to the plan — 150k–250k depending on the run mode and the plan's size. Claude Code's default for Opus 5.5 is 1M tokens, which would let the loop's conversation, resent on every turn, grow for hours; a smaller window caps that, while leaving room for several ticks between compactions (compaction fires ~33K below the window, and a session starts at ~35–50K before any work). On an API key, drop the interval (`/loop karagoz:parallel-low …`): the prompt cache lives five minutes there, and a 20-minute gap would re-write the whole conversation on every tick. Then Karagöz takes over and works through the plan on its own, closing the loop when the job is done.
 
 **These skills only run when you name them.** They will not fire on their own, however much your request sounds like a job for them. That's deliberate: they spin up an expensive machine, and you decide when that's worth it.
 
@@ -90,7 +90,19 @@ That's what lets the loop spin for hours instead of collapsing after a few ticks
 
 ### Parallelism on independent steps
 
-Steps whose `files_touched` lists don't overlap can run in the same tick, in parallel — each isolated in its own git worktree, so one Worker's changes never look like a scope violation to another step's Observer. On PASS the step is committed in its worktree and merged into the shared tree; on FAIL the worktree is discarded without ever having touched the shared tree. Overlapping `files_touched` still runs one step at a time, in order. A solo step that runs directly in the shared root gets committed there on PASS too, before the ledger calls it `done`. That checkpoint is what makes reverting a failed or interrupted step safe — the revert only ever reaches that step's own uncommitted work, never an earlier `done` step's — and gives the next parallel batch a correct branch point. Those commits and reverts go through a small script (`skills/karagoz/scripts/stepgit.sh`) that handles the files a step creates or deletes, which plain `git add` / `git checkout` on a file list silently get wrong.
+Steps whose `files_touched` lists don't overlap can run in the same tick, in parallel — each isolated in its own git worktree, so one Worker's changes never look like a scope violation to another step's Observer. On PASS the step is committed in its worktree and merged into the shared tree; on FAIL the worktree is discarded without ever having touched the shared tree. Overlapping `files_touched` still runs one step at a time, in order.
+
+How many steps a tick may take is the run mode, the word after `karagoz:` in the loop command. Hacivat picks it from the plan's dependency graph:
+
+| Mode | Steps per tick | Hacivat picks it when |
+|---|---|---|
+| `single` | 1 | the steps form a chain, the project isn't a git repo, or you want each step to land before the next starts |
+| `parallel-low` | up to 2 | the plan has independent steps — the default |
+| `parallel-high` | up to 4 | 3 or more steps can run together and none of them is critical |
+
+A batch ends only when its slowest step does, so a critical step with its refactor rounds holds back a wide batch; and four Workers at once spend a subscription's usage window four times as fast. A loop command without a mode, from before 1.9, runs as `parallel-high`.
+
+A solo step that runs directly in the shared root gets committed there on PASS too, before the ledger calls it `done`. That checkpoint is what makes reverting a failed or interrupted step safe — the revert only ever reaches that step's own uncommitted work, never an earlier `done` step's — and gives the next parallel batch a correct branch point. Those commits and reverts go through a small script (`skills/karagoz/scripts/stepgit.sh`) that handles the files a step creates or deletes, which plain `git add` / `git checkout` on a file list silently get wrong.
 
 ### Defense in depth — no human required
 

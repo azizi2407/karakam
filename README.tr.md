@@ -46,10 +46,10 @@ Devretmek için:
 2. /model opus                 (oturum zaten Opus'taysa atla)
 3. /effort medium
 4. /autocompact 150k
-5. /loop 20m karagoz: ./my-project/plan/ içindeki planı uygula
+5. /loop 20m karagoz:parallel-low ./my-project/plan/ içindeki planı uygula
 ```
 
-Önce commit'le (git projesindeysen): Karagöz her biten adımı git ile kaydeder ve başarısız olanı kendi dosyalarında geri alır, bu yüzden temiz bir çalışma ağacından başlamalı — kendi değişikliklerini, başıboş dosyaları da süpürecek toptan bir `git add -A` yerine kendin commit'le. `/clear` önemli — yürütme aşaması temiz bir context ile başlamalı; bu temiz başlangıç aynı zamanda model, effort ya da compaction ayarını değiştirmenin hiçbir şeye mal olmadığı tek an. `/effort medium`, Koordinatörü — yani senin oturumunu, yürütme faturasının %30–40'ı — ölçüldüğü effort'a sabitler; yoksa oturum en son ayarladığın effort'la devam eder ve başka bir iş için bırakılmış bir `xhigh`, her turda mekanik defter işine derin düşünme parası öder. Alt-ajanların effort'u kendi tanımlarında durur. `/autocompact` penceresi plana göre ayarlanır — paralel koşan adım sayısına göre 150k–250k. Claude Code'un Opus 5.5 için varsayılanı 1M token; bu, her turda yeniden gönderilen loop konuşmasının saatlerce büyümesine izin verir. Daha küçük bir pencere bunu sınırlar ama compaction'lar arasında birkaç tick'lik yer bırakır (compaction pencerenin ~33K altında tetiklenir, bir oturum da daha iş başlamadan ~35–50K ile açılır). API key kullanıyorsan aralığı kaldır (`/loop karagoz: …`): orada prompt cache beş dakika yaşar ve 20 dakikalık bir boşluk her tick'te tüm konuşmanın cache'e yeniden yazılması demektir. Ardından Karagöz devralır ve planı kendi başına yürütür, iş bittiğinde loop'u kendisi kapatır.
+Önce commit'le (git projesindeysen): Karagöz her biten adımı git ile kaydeder ve başarısız olanı kendi dosyalarında geri alır, bu yüzden temiz bir çalışma ağacından başlamalı — kendi değişikliklerini, başıboş dosyaları da süpürecek toptan bir `git add -A` yerine kendin commit'le. `/clear` önemli — yürütme aşaması temiz bir context ile başlamalı; bu temiz başlangıç aynı zamanda model, effort ya da compaction ayarını değiştirmenin hiçbir şeye mal olmadığı tek an. `/effort medium`, Koordinatörü — yani senin oturumunu, yürütme faturasının %30–40'ı — ölçüldüğü effort'a sabitler; yoksa oturum en son ayarladığın effort'la devam eder ve başka bir iş için bırakılmış bir `xhigh`, her turda mekanik defter işine derin düşünme parası öder. Alt-ajanların effort'u kendi tanımlarında durur. `karagoz:`'dan sonraki kelime, Hacivat'ın plan için seçtiği çalışma modu ([Bağımsız adımlarda paralellik](#bağımsız-adımlarda-paralellik)); istersen değiştir. `/autocompact` penceresi plana göre ayarlanır — çalışma moduna ve planın büyüklüğüne göre 150k–250k. Claude Code'un Opus 5.5 için varsayılanı 1M token; bu, her turda yeniden gönderilen loop konuşmasının saatlerce büyümesine izin verir. Daha küçük bir pencere bunu sınırlar ama compaction'lar arasında birkaç tick'lik yer bırakır (compaction pencerenin ~33K altında tetiklenir, bir oturum da daha iş başlamadan ~35–50K ile açılır). API key kullanıyorsan aralığı kaldır (`/loop karagoz:parallel-low …`): orada prompt cache beş dakika yaşar ve 20 dakikalık bir boşluk her tick'te tüm konuşmanın cache'e yeniden yazılması demektir. Ardından Karagöz devralır ve planı kendi başına yürütür, iş bittiğinde loop'u kendisi kapatır.
 
 **Bu skill'ler sadece adları anıldığında çalışır.** İsteğiniz onlara ne kadar uygun görünse görünsün, kendiliklerinden tetiklenmezler. Bu bilinçli bir tercih: pahalı bir makine devreye giriyor ve buna değip değmeyeceğine sen karar veriyorsun.
 
@@ -90,7 +90,19 @@ Loop'un birkaç tick sonra çökmek yerine saatlerce dönebilmesini sağlayan ş
 
 ### Bağımsız adımlarda paralellik
 
-`files_touched` listeleri kesişmeyen adımlar aynı tick'te paralel çalıştırılabilir — her biri kendi git worktree'sinde izole edilir, böylece bir Worker'ın değişiklikleri başka bir adımın kapsam ihlali gibi görünmez. Adım geçtiğinde kendi worktree'sinde commit'lenir ve ana ağaca merge edilir; kaldığında worktree ana ağaca hiç dokunmadan çöpe atılır. Kesişen `files_touched`'lar hâlâ sırayla, tek tek işlenir. Paylaşılan kökte tek başına çalışan bir adım da geçtiğinde, defter onu `done` saymadan önce orada commit'lenir. Bu checkpoint, başarısız ya da yarım kalmış bir adımı geri almayı güvenli kılar — geri alma yalnızca o adımın kendi commit'lenmemiş işine ulaşır, daha önceki bir `done` adımına asla — ve bir sonraki paralel grubun doğru bir dal noktasından başlamasını sağlar. Bu commit ve geri almalar, bir adımın yarattığı ya da sildiği dosyaları da doğru işleyen küçük bir script'ten (`skills/karagoz/scripts/stepgit.sh`) geçer; bir dosya listesi üzerinde düz `git add` / `git checkout` bunları sessizce yanlış yapar.
+`files_touched` listeleri kesişmeyen adımlar aynı tick'te paralel çalıştırılabilir — her biri kendi git worktree'sinde izole edilir, böylece bir Worker'ın değişiklikleri başka bir adımın kapsam ihlali gibi görünmez. Adım geçtiğinde kendi worktree'sinde commit'lenir ve ana ağaca merge edilir; kaldığında worktree ana ağaca hiç dokunmadan çöpe atılır. Kesişen `files_touched`'lar hâlâ sırayla, tek tek işlenir.
+
+Bir tick'in kaç adım alacağını çalışma modu belirler: loop komutunda `karagoz:`'dan sonraki kelime. Hacivat onu planın bağımlılık grafiğine bakarak seçer:
+
+| Mod | Tick başına adım | Hacivat ne zaman seçer |
+|---|---|---|
+| `single` | 1 | adımlar bir zincir oluşturuyorsa, proje git deposu değilse ya da her adımın bir sonraki başlamadan yerine oturmasını istiyorsan |
+| `parallel-low` | en fazla 2 | planda bağımsız adımlar varsa — varsayılan |
+| `parallel-high` | en fazla 4 | 3 ya da daha fazla adım birlikte koşabiliyorsa ve hiçbiri kritik değilse |
+
+Bir grup ancak en yavaş adımı bitince biter; refactor turlarına giren kritik bir adım geniş bir grubu bekletir. Aynı anda dört Worker da aboneliğin kullanım penceresini dört kat hızlı harcar. 1.9 öncesinden kalma, modsuz bir loop komutu `parallel-high` olarak çalışır.
+
+Paylaşılan kökte tek başına çalışan bir adım da geçtiğinde, defter onu `done` saymadan önce orada commit'lenir. Bu checkpoint, başarısız ya da yarım kalmış bir adımı geri almayı güvenli kılar — geri alma yalnızca o adımın kendi commit'lenmemiş işine ulaşır, daha önceki bir `done` adımına asla — ve bir sonraki paralel grubun doğru bir dal noktasından başlamasını sağlar. Bu commit ve geri almalar, bir adımın yarattığı ya da sildiği dosyaları da doğru işleyen küçük bir script'ten (`skills/karagoz/scripts/stepgit.sh`) geçer; bir dosya listesi üzerinde düz `git add` / `git checkout` bunları sessizce yanlış yapar.
 
 ### Derinlemesine savunma — insan gerekmeden
 
