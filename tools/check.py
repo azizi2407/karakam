@@ -48,7 +48,7 @@ def frontmatter(path):
 
 # 1. frontmatter
 REQUIRED = {"skills": {"name", "description"},
-            "agents": {"name", "description", "model", "effort", "tools"}}
+            "agents": {"name", "description", "model", "effort"}}
 for kind, fields in REQUIRED.items():
     pattern = "skills/*/SKILL.md" if kind == "skills" else "agents/*.md"
     for f in sorted(PLUGIN.glob(pattern)):
@@ -64,6 +64,8 @@ for kind, fields in REQUIRED.items():
         missing = fields - fm.keys()
         if missing:
             err(f"{rel}: frontmatter lacks {sorted(missing)}")
+        if kind == "agents" and ("tools" in fm) == ("disallowedTools" in fm):
+            err(f"{rel}: frontmatter needs exactly one of tools / disallowedTools")
         expected = f.parent.name if kind == "skills" else f.stem
         if fm.get("name") != expected:
             err(f"{rel}: name {fm.get('name')!r} should be {expected!r}")

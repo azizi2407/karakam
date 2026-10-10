@@ -106,6 +106,10 @@ Paralel gruplar git worktree'si ister. Proje bir git deposu değilse Hacivat dev
 
 Paylaşılan kökte tek başına çalışan bir adım da geçtiğinde, defter onu `done` saymadan önce orada commit'lenir. Bu checkpoint, başarısız ya da yarım kalmış bir adımı geri almayı güvenli kılar — geri alma yalnızca o adımın kendi commit'lenmemiş işine ulaşır, daha önceki bir `done` adımına asla — ve bir sonraki paralel grubun doğru bir dal noktasından başlamasını sağlar. Bu commit ve geri almalar, bir adımın yarattığı ya da sildiği dosyaları da doğru işleyen küçük bir script'ten (`skills/karagoz/scripts/stepgit.sh`) geçer; bir dosya listesi üzerinde düz `git add` / `git checkout` bunları sessizce yanlış yapar.
 
+### MCP üzerinden çalışan adımlar
+
+Worker'lar ve Observer'lar oturumun MCP sunucularını devralır; böylece bir plan, kullanıcının bağladığı bir Drive'ı, veritabanını ya da iş takip aracını okuyup yazabilir. Onlardan yalnızca loop'un kendi araçları (ajan başlatma, tick zamanlama, worktree değiştirme) esirgenir. (1.10'dan önce tanımları kullanabilecekleri araçları listeliyordu ve bu liste MCP araçlarının hepsini dışarıda bırakıyordu.) Uzaktaki iş `files_touched`'ın ve git'in dışında kalır, bu yüzden Hacivat böyle adımları farklı yazar: Worker prompt'u sunucuyu ve tam uzak kaynakları adlandırır, Observer onları aynı sunucunun okuma araçlarıyla kontrol eder ve oraya asla yazmaz, aynı uzak kaynağa yazan iki adım bir `depends_on` alır ve uzak yazmalar idempotent tutulur, çünkü onları hiçbir şey geri almaz. Devir şablonu `/clear`'dan önce bir satır ekler: sunucunun araçlarına oturum için izin ver (`/permissions` → `mcp__<sunucu>`), yoksa gözetimsiz bir loop bir izin isteminde takılır.
+
 ### Derinlemesine savunma — insan gerekmeden
 
 Kalite, hiçbiri sana bir şey sormadan duran üç otonom katmanla korunur:
