@@ -163,3 +163,9 @@ Every step forced to `medium` — the worst case for the new rubric, which keeps
 - **A slow step holds its batch.** In the second `parallel-low` run step 06 needed an Opus refactor round; that run took 606s and $3.55. The round, not the mode, made it dear, but it shows why a batch is only as fast as its slowest step, and why Hacivat keeps critical steps out of a wide batch.
 - **Every tick honoured its mode.** `single` never started a second step; `parallel-low` started 01 and 02 together, then 04 and 05.
 - **Hacivat picks the mode and says why.** On a 7-step plan where 02, 03 and 05 can run together after 01, it picked `parallel-low`: "02 is critical, so at most 2 steps run in parallel", and wrote `/loop 20m karagoz:parallel-low …` into the handoff with `/autocompact 150k`. Planning cost $3.29.
+
+### 1.10: Workers and Observers inherit the session's MCP servers (`stokcu`, 2 runs)
+
+Before 1.10 the agent definitions listed the tools a sub-agent could use, and that list cut off every MCP tool: probed with a stub MCP server, a Worker defined that way answered "no such tool", while the same Worker defined with a deny-list called it. 1.10's Worker and Observer both reached the stub.
+
+To check that a wider toolset changes nothing on an ordinary plan: $1.24 and $1.62, 18/18 in both runs. The sub-agents used only Bash, Read and Edit. The dearer run's one Opus refactor round was a real bug the Observer caught (NaN and Infinity accepted as prices), not a tool.
