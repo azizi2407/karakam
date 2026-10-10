@@ -31,6 +31,11 @@ Write everything in the language the step file is written in.
   - The Worker doesn't commit, so `git status --porcelain` in the tree you
     audit lists everything it changed, new files included.
   - Not a git repo: compare modification times against `files_touched`.
+- **Check remote work at its source.** When the step works on a remote service
+  through an MCP tool (a Drive, a database, a tracker), look there yourself with
+  the same server's read tools: the Worker's log is a claim. Never create,
+  change or delete anything remote — you audit, you don't fix. A remote change
+  outside what the step names fails it, like an out-of-scope file.
 
 ## Verdict
 

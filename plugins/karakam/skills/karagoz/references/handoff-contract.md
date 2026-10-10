@@ -114,6 +114,11 @@ files_touched: <the exact files this step may write to — one line, comma-separ
 
 **`files_touched` is a scope contract, not documentation** — and keep it on one line: Karagöz reads it with a single `grep '^files_touched:'` to decide which steps can run in parallel, so a list wrapped onto a second line would be checked incomplete. The Worker is forbidden from touching anything outside it, and the Observer fails the step if something else changed. So list it precisely: too narrow and honest work gets rejected; too wide (or vague, like "the whole module") and you hand a Worker license to wander into a later step's territory — half-doing work that will then be marked `done` by whoever finds it "already there". If two steps genuinely must write to the same file, that's a real dependency: say so in `depends_on` so they run in sequence. A precise list also unlocks Karagöz's parallel path: steps with disjoint `files_touched` and no real `depends_on` between them can run concurrently, each in its own isolated worktree.
 
+**Remote work through MCP.** Workers and Observers inherit the session's MCP servers, so a step can read or write a Drive, a database or a tracker. `files_touched` and git don't reach there: a worktree doesn't isolate a remote change and a failed step's revert doesn't undo it. So for a step that writes remotely:
+- name the server and the exact remote resources (folder, file, table) in the Worker prompt, and what the Observer should look at through the same server's read tools in "Observer checks";
+- two steps that write the same remote resource have a real dependency — put it in `depends_on`, since nothing else keeps them apart in a parallel batch;
+- keep a remote write idempotent where you can ("create the file if missing, otherwise overwrite it"), because a failed step's next Worker starts from whatever the last one left there.
+
 ---
 
 ## progress.md

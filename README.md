@@ -106,6 +106,10 @@ Parallel batches need git worktrees. If the project isn't a git repo, Hacivat sa
 
 A solo step that runs directly in the shared root gets committed there on PASS too, before the ledger calls it `done`. That checkpoint is what makes reverting a failed or interrupted step safe — the revert only ever reaches that step's own uncommitted work, never an earlier `done` step's — and gives the next parallel batch a correct branch point. Those commits and reverts go through a small script (`skills/karagoz/scripts/stepgit.sh`) that handles the files a step creates or deletes, which plain `git add` / `git checkout` on a file list silently get wrong.
 
+### Steps that work through MCP
+
+Workers and Observers inherit the session's MCP servers, so a plan can read and write a Drive, a database or a tracker the user connected; only the loop's own tools (spawning agents, scheduling ticks, switching worktrees) are withheld from them. (Before 1.10 their definitions listed the tools they could use, and that list cut every MCP tool off.) Remote work sits outside `files_touched` and git, so Hacivat writes such steps differently: the Worker prompt names the server and the exact remote resources, the Observer checks them through the same server's read tools and never writes there, two steps that write the same remote resource get a `depends_on`, and remote writes are kept idempotent, since nothing reverts them. The handoff adds one line before `/clear`: allow the server's tools for the session (`/permissions` → `mcp__<server>`), or an unattended loop stalls on a permission prompt.
+
 ### Defense in depth — no human required
 
 Quality is guarded by three autonomous layers, none of which stops to ask you anything:

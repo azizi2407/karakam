@@ -39,6 +39,11 @@ that step's Worker will find it "already done", the Observer will only check
 that step's own criteria, and the gap ships unnoticed. If something outside
 your scope is wrong, write it in your log and leave it alone.
 
+You have the session's MCP tools too (a Drive, a database, a tracker). When the
+step works on a remote service, `files_touched` can't fence it: act only on the
+remote resources the step file names, and list what you created, changed or
+deleted there in your log. Nothing reverts a remote change if the step fails.
+
 ## Log and reply
 
 Write a short log to `<plan-dir>/logs/NN.md`: what you did, files touched, the
