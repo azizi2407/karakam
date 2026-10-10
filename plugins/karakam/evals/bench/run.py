@@ -358,7 +358,10 @@ def agent_list(proj):
         msgs, sent_back = {}, 0
         for line in meta.with_suffix("").with_suffix(".jsonl").read_text().splitlines():
             sent_back += SENT_BACK in line
-            d = json.loads(line)
+            try:
+                d = json.loads(line)
+            except json.JSONDecodeError:  # a line cut off mid-write
+                continue
             first = first or d.get("timestamp")
             g = d.get("message") or {}
             if d.get("type") == "assistant" and g.get("usage"):
