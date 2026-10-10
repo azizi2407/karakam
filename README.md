@@ -96,11 +96,13 @@ How many steps a tick may take is the run mode, the word after `karagoz:` in the
 
 | Mode | Steps per tick | Hacivat picks it when |
 |---|---|---|
-| `single` | 1 | the steps form a chain, the project isn't a git repo, or you want each step to land before the next starts |
+| `single` | 1 | the steps form a chain, or you want each step to land before the next starts |
 | `parallel-low` | up to 2 | the plan has independent steps — the default |
 | `parallel-high` | up to 4 | 3 or more steps can run together and none of them is critical |
 
 A batch ends only when its slowest step does, so a critical step with its refactor rounds holds back a wide batch; and four Workers at once spend a subscription's usage window four times as fast. A loop command without a mode, from before 1.9, runs as `parallel-high`.
+
+Parallel batches need git worktrees. If the project isn't a git repo, Hacivat says so at handoff and lets you choose: `git init` it, and get parallel steps and per-step checkpoints, or go on without git as `single`, where a failed step's partial changes stay in the files.
 
 A solo step that runs directly in the shared root gets committed there on PASS too, before the ledger calls it `done`. That checkpoint is what makes reverting a failed or interrupted step safe — the revert only ever reaches that step's own uncommitted work, never an earlier `done` step's — and gives the next parallel batch a correct branch point. Those commits and reverts go through a small script (`skills/karagoz/scripts/stepgit.sh`) that handles the files a step creates or deletes, which plain `git add` / `git checkout` on a file list silently get wrong.
 

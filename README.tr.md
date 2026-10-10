@@ -96,11 +96,13 @@ Bir tick'in kaç adım alacağını çalışma modu belirler: loop komutunda `ka
 
 | Mod | Tick başına adım | Hacivat ne zaman seçer |
 |---|---|---|
-| `single` | 1 | adımlar bir zincir oluşturuyorsa, proje git deposu değilse ya da her adımın bir sonraki başlamadan yerine oturmasını istiyorsan |
+| `single` | 1 | adımlar bir zincir oluşturuyorsa ya da her adımın bir sonraki başlamadan yerine oturmasını istiyorsan |
 | `parallel-low` | en fazla 2 | planda bağımsız adımlar varsa — varsayılan |
 | `parallel-high` | en fazla 4 | 3 ya da daha fazla adım birlikte koşabiliyorsa ve hiçbiri kritik değilse |
 
 Bir grup ancak en yavaş adımı bitince biter; refactor turlarına giren kritik bir adım geniş bir grubu bekletir. Aynı anda dört Worker da aboneliğin kullanım penceresini dört kat hızlı harcar. 1.9 öncesinden kalma, modsuz bir loop komutu `parallel-high` olarak çalışır.
+
+Paralel gruplar git worktree'si ister. Proje bir git deposu değilse Hacivat devirde bunu söyler ve seçimi sana bırakır: `git init` ile depo yap, paralel adımları ve adım başına checkpoint'leri kazan; ya da git olmadan `single` olarak devam et, bu durumda başarısız bir adımın yarım değişiklikleri dosyalarda kalır.
 
 Paylaşılan kökte tek başına çalışan bir adım da geçtiğinde, defter onu `done` saymadan önce orada commit'lenir. Bu checkpoint, başarısız ya da yarım kalmış bir adımı geri almayı güvenli kılar — geri alma yalnızca o adımın kendi commit'lenmemiş işine ulaşır, daha önceki bir `done` adımına asla — ve bir sonraki paralel grubun doğru bir dal noktasından başlamasını sağlar. Bu commit ve geri almalar, bir adımın yarattığı ya da sildiği dosyaları da doğru işleyen küçük bir script'ten (`skills/karagoz/scripts/stepgit.sh`) geçer; bir dosya listesi üzerinde düz `git add` / `git checkout` bunları sessizce yanlış yapar.
 
