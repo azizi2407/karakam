@@ -149,3 +149,17 @@ Every step forced to `medium` — the worst case for the new rubric, which keeps
 - **On well-specified steps `medium` is enough, and 7–10% cheaper.** Every hidden test passed; Worker spend fell by about a fifth.
 - **On steps with traps it isn't.** In `fifo`, step 02 (the FIFO ledger, critical) failed its first audit at `medium` in both runs and step 06 (the CLI, critical) in one; each went to an Opus Worker and passed, but the rounds made the plan 3–42% dearer than running it at `high`. These are exactly the steps the new rubric keeps at `high`: rules that interact, each with a tempting shortcut.
 - **Hacivat draws the line where it should.** With the new rubric it put the steps that hold the domain rules and the critical ones at `high`, a thin wrapper at `medium` and the scaffolding at `low`.
+
+### 1.9: run modes (`fifo`, `--run-mode single` vs `parallel-low`, 2 runs each; Hacivat 1 run)
+
+`fifo` is at most two steps wide (01 ‖ 02, then 04 ‖ 05), so `parallel-high` would run it exactly as `parallel-low` does. Steps keep the plan's own efforts.
+
+| Mode | cost | wall time | Coordinator | hidden tests | refactor rounds |
+|---|---|---|---|---|---|
+| `single` | $2.61–2.64 | 513–518s | $0.68–0.71 | 57/57 ×2 | 0 · 0 |
+| `parallel-low` | $2.71–3.55 | 417–606s | $0.85 · $0.85 | 57/57 ×2 | 0 · 1 |
+
+- **Parallel buys time, not money.** With no refactor round, `parallel-low` finished in 417s against 513–518s for `single`, about a fifth faster, for about $0.07 more. The extra is the Coordinator's: setting up, landing and cleaning up worktrees cost about $0.15 a run.
+- **A slow step holds its batch.** In the second `parallel-low` run step 06 needed an Opus refactor round; that run took 606s and $3.55. The round, not the mode, made it dear, but it shows why a batch is only as fast as its slowest step, and why Hacivat keeps critical steps out of a wide batch.
+- **Every tick honoured its mode.** `single` never started a second step; `parallel-low` started 01 and 02 together, then 04 and 05.
+- **Hacivat picks the mode and says why.** On a 7-step plan where 02, 03 and 05 can run together after 01, it picked `parallel-low`: "02 is critical, so at most 2 steps run in parallel", and wrote `/loop 20m karagoz:parallel-low …` into the handoff with `/autocompact 150k`. Planning cost $3.29.

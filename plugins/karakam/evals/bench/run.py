@@ -48,11 +48,13 @@ SHIFT_DOWN = {"low": "low", "medium": "low", "high": "medium"}
 # set from the command line: main-session effort, as the handoff pins it
 MAIN_EFFORT = "medium"
 JUDGE = "off"
+RUN_MODE = ":"
 # the stop guard's message to a Worker it sends back (hooks/judge.ts SEND_BACK)
 SENT_BACK = "Your reply ends before the step is finished"
 
+# the loop prompt; "karagoz:<mode>" when --run-mode is given
 KARAGOZ_PROMPT = (
-    "karagoz: ./plan/ içindeki planı uygula. "
+    "karagoz{mode} ./plan/ içindeki planı uygula. "
     "(Headless benchmark: /loop yok. Döngü kapatma adımında ScheduleWakeup/"
     "Cron çağırma, yalnızca kısa bir kapanış özeti ver.)"
 )
@@ -226,7 +228,7 @@ def run_karagoz(run_dir, plugin, model, max_ticks, scen, legacy, shift=False, le
     start = sh("git rev-parse HEAD", cwd=proj).stdout.strip()
     ticks, session = [], None
     for n in range(1, max_ticks + 1):
-        d = claude(KARAGOZ_PROMPT, proj, plugin, model, session)
+        d = claude(KARAGOZ_PROMPT.format(mode=RUN_MODE), proj, plugin, model, session)
         (run_dir / f"tick-{n}.json").write_text(json.dumps(d, indent=1))
         session = d.get("session_id") or session
         state = ledger(proj)
@@ -356,7 +358,10 @@ def agent_list(proj):
         msgs, sent_back = {}, 0
         for line in meta.with_suffix("").with_suffix(".jsonl").read_text().splitlines():
             sent_back += SENT_BACK in line
-            d = json.loads(line)
+            try:
+                d = json.loads(line)
+            except json.JSONDecodeError:  # a line cut off mid-write
+                continue
             first = first or d.get("timestamp")
             g = d.get("message") or {}
             if d.get("type") == "assistant" and g.get("usage"):
@@ -478,12 +483,15 @@ def main():
                          "refactor-round Workers keep theirs")
     ap.add_argument("--judge", default="off", choices=["off", "haiku"],
                     help="KARAKAM_JUDGE for the run: haiku turns the Worker stop guard on")
+    ap.add_argument("--run-mode", choices=["single", "parallel-low", "parallel-high"],
+                    help="karagoz only: send the loop prompt as karagoz:<mode>")
     ap.add_argument("--legacy-plan", action="store_true",
                     help="karagoz only: convert the plan to the pre-1.2 model-column contract")
     a = ap.parse_args()
-    global MAIN_EFFORT, JUDGE
+    global MAIN_EFFORT, JUDGE, RUN_MODE
     MAIN_EFFORT = a.effort
     JUDGE = a.judge
+    RUN_MODE = f":{a.run_mode}" if a.run_mode else ":"
     if a.mode == "report":
         return report()
     if a.mode == "reanalyze":

@@ -67,13 +67,24 @@ Build the `progress.md` skeleton (every step `pending`) and check that `effort` 
 
 ### 6. Present and hand over
 
-Give the user a short summary — step count, key decisions, risks, known limits — plus two numbers they need before committing:
+Give the user a short summary — step count, key decisions, risks, known limits — plus the run mode and two numbers they need before committing:
+
+- **Run mode.** How many steps Karagöz may take in one tick. It goes into the loop command as `karagoz:<mode>`, so it reaches Karagöz on every tick. Find the widest point of the `depends_on` graph — the most steps that can be eligible at once with pairwise disjoint `files_touched` — then pick:
+  - `single` — one step per tick. The graph is a chain (no two steps are ever eligible together), or the user wants each step to land before the next starts.
+  - `parallel-low` — up to 2 steps per tick: the default when the graph has independent steps.
+  - `parallel-high` — up to 4 steps per tick: the graph is wide (3 or more steps eligible together at least once) and those steps are not `critical`. A batch ends only when its slowest step does, so a critical step, with its two Observers and likely refactor rounds, holds the rest of a wide batch back; and four Workers at once spend a subscription's usage window four times as fast.
+
+  Say which mode you picked and why in one line; the user can change the word in the command.
+
+  **Not a git repo** (`git rev-parse --is-inside-work-tree` fails in the project root)? Karagöz then runs everything as `single` whatever the command says, since a parallel batch needs worktrees, and it has no checkpoints either: a failed step's files can't be reverted to a known state. Don't let that happen silently. Tell the user, and let them choose:
+  - **Make it a git repo** — `git init`, then step 0 of the handoff commits their work and the plan. Pick the mode from the graph as above.
+  - **Go on without git** — write `karagoz:single` into the command, and say that a failed step's partial changes stay in the files for them to look at.
 
 - **Execution cost estimate.** Measured at API list prices (Sonnet 5.5 Workers, Opus 5.5 Observers and Coordinator), a small, well-specified step costs about $0.3–0.5 end to end (Worker, Observer and the Coordinator's share); budget up to ~$1 for a larger one, about twice that for a critical step (two Observers at high effort), and one more Worker-plus-Observer run for every refactor round. Give a range for the whole plan — e.g. "12 steps, 3 critical: roughly $6–15". The point is letting the user tell a light afternoon loop from an expensive multi-hour run; on a subscription it's a measure of how much of their usage the run will take, not a bill.
 - **An `/autocompact` window for the execution session.** Claude Code's default for Opus 5.5 is 1M tokens, so a long loop would carry an ever-growing conversation into every turn. Karagöz keeps all its state on disk, so compaction loses it nothing — but the window has to leave room for several ticks between compactions, so one never lands mid-batch:
-  - up to 2 steps in parallel → `/autocompact 150k`
-  - 3–4 steps in parallel, or 30+ steps → `/autocompact 200k`
-  - wider batches → `/autocompact 250k`
+  - `single` or `parallel-low` → `/autocompact 150k`
+  - `parallel-high`, or 30+ steps → `/autocompact 200k`
+  - `parallel-high` and 30+ steps → `/autocompact 250k`
 
   Why these sizes: compaction fires about 33K below the window (Claude Code keeps that as a summary buffer); a session starts at roughly 35–50K before any work (more with a large CLAUDE.md or many MCP servers — `/context` shows it); and a tick adds roughly 5–10K per step in its batch. Going lower saves only cents per tick, while the command itself rejects anything under 100k.
 
@@ -88,12 +99,12 @@ To hand over:
 2. /model opus                 (skip if the session is already on Opus)
 3. /effort medium
 4. /autocompact <window>
-5. /loop 20m karagoz: execute the plan in ./<project>/plan/
+5. /loop 20m karagoz:<mode> execute the plan in ./<project>/plan/
 ```
 
-Step 0 matters in a git project (skip it otherwise): Karagöz commits each finished step, reverts a failed one on its `files_touched` back to the last commit, and branches parallel steps from the last commit — so uncommitted work of the user's in those files could be lost, and would be invisible to parallel Workers. Ask the user to commit their own changes themselves rather than sweeping everything up with `git add -A`, which would also commit stray files such as an un-ignored `.env`. The loop prompt must name `karagoz` — that name is what triggers the execution skill on every tick. `/clear` starts execution on a fresh context, and switching model, effort or compaction settings right after it costs nothing, because there is no cached conversation yet to rewrite. `/effort medium` is there because the session's effort carries over from whatever the user last set, and the Coordinator — 30–40% of the execution bill — runs at it on every turn: a session left at `xhigh` would pay for deep thinking on mechanical ledger work. Medium is what Karagöz was measured at; the sub-agents' effort is set in their own definitions and isn't affected.
+Step 0 matters in a git project (skip it in a project the user chose to run without git): Karagöz commits each finished step, reverts a failed one on its `files_touched` back to the last commit, and branches parallel steps from the last commit — so uncommitted work of the user's in those files could be lost, and would be invisible to parallel Workers. Ask the user to commit their own changes themselves rather than sweeping everything up with `git add -A`, which would also commit stray files such as an un-ignored `.env`. The loop prompt must start with `karagoz:<mode>` — the name is what triggers the execution skill on every tick, and the mode caps each tick's batch. `/clear` starts execution on a fresh context, and switching model, effort or compaction settings right after it costs nothing, because there is no cached conversation yet to rewrite. `/effort medium` is there because the session's effort carries over from whatever the user last set, and the Coordinator — 30–40% of the execution bill — runs at it on every turn: a session left at `xhigh` would pay for deep thinking on mechanical ledger work. Medium is what Karagöz was measured at; the sub-agents' effort is set in their own definitions and isn't affected.
 
-Choose the interval with the user, and tell them why it matters: every tick resends the whole loop conversation, which is cheap only while the prompt cache is warm. On a Claude subscription the cache lives an hour, so `20m` is fine and spreads the work across their usage window. On an API key or a cloud provider (or a subscription drawing on usage credits) it lives five minutes — there, drop the interval (`/loop karagoz: …`), and each tick follows the previous one straight away.
+Choose the interval with the user, and tell them why it matters: every tick resends the whole loop conversation, which is cheap only while the prompt cache is warm. On a Claude subscription the cache lives an hour, so `20m` is fine and spreads the work across their usage window. On an API key or a cloud provider (or a subscription drawing on usage credits) it lives five minutes — there, drop the interval (`/loop karagoz:<mode> …`), and each tick follows the previous one straight away.
 
 If the user asked for Fable, add that to the loop prompt ("… use Fable for the Workers") so it reaches Karagöz on every tick; otherwise Workers run on Sonnet 5.5 (Opus on refactor rounds) and everything else on Opus.
 
@@ -103,7 +114,7 @@ Karagöz spins for hours only if every tick stays small, and you set that up now
 
 - **Self-contained steps.** Each step file embeds the slice of the methodology it needs, so Workers and Observers read one file instead of the whole methodology. Keep the slice to what the step actually uses.
 - **Task-specific worker prompts.** The Worker's general protocol — test-first, scope lock, log, reply format — lives in its agent definition. The step's worker prompt says what to do, which files, which interfaces to honor.
-- **Precise `files_touched`.** Karagöz enforces it as a scope boundary: the Worker may touch nothing else and the Observer fails the step if something else changed. A vague or over-wide list lets a Worker wander into a later step and half-do it; that step then gets marked `done` by whoever finds it "already there", and the gap ships silently. If two steps must write the same file, that's a real dependency — put it in `depends_on`. A precise list also lets Karagöz run genuinely independent steps in parallel, each in its own worktree.
+- **Precise `files_touched`.** Karagöz enforces it as a scope boundary: the Worker may touch nothing else and the Observer fails the step if something else changed. A vague or over-wide list lets a Worker wander into a later step and half-do it; that step then gets marked `done` by whoever finds it "already there", and the gap ships silently. If two steps must write the same file, that's a real dependency — put it in `depends_on`. A precise list also lets Karagöz run genuinely independent steps in parallel, each in its own worktree, up to the run mode's cap.
 - **Acceptance criteria that run.** "Done" must mean a check that executes: a test, a command and its expected output.
 - **Criteria that can't be gamed.** A Worker wants to pass; leave a shortcut and it will find one, staging ("seeding") the very state the test should prove so the check goes green while the real path never runs. For each criterion ask: could a Worker satisfy this without exercising the actual behavior? If so, close the gap — forbid the shortcut explicitly ("start from an empty directory"), demand an observable side effect ("after the POST, the stamp file exists"), or use signals that can't be faked, like timing or ordering ("the second request returns in under 1s").
 - **Criteria that reach the caller.** When a step changes something other code uses, at least one check goes through that caller — the CLI, the client, the endpoint. A unit test of the changed piece alone passes while the product is still broken one layer up.
