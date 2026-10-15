@@ -42,7 +42,10 @@ RESULTS = HERE / "results"
 # karagoz scenarios: <dir>/plan (+ optional <dir>/base, the codebase the plan
 # starts from) and <dir>/hidden/test_hidden.py
 SCENARIOS = {"stokcu": HERE / "karagoz", "refactor": HERE / "karagoz-refactor",
-             "fifo": HERE / "karagoz-fifo"}
+             "fifo": HERE / "karagoz-fifo",
+             # kisalink: no plan of its own — pass --plan-from a hacivat run's plan
+             "kisalink": HERE / "hacivat"}
+PLAN_FROM = None
 LEGACY_MODEL = {"low": "haiku", "medium": "sonnet", "high": "opus"}
 SHIFT_DOWN = {"low": "low", "medium": "low", "high": "medium"}
 # set from the command line: main-session effort, as the handoff pins it
@@ -213,7 +216,8 @@ def run_karagoz(run_dir, plugin, model, max_ticks, scen, legacy, shift=False, le
     proj = run_dir / "proj"
     if (scen / "base").exists():
         shutil.copytree(scen / "base", proj, ignore=shutil.ignore_patterns("__pycache__"))
-    shutil.copytree(scen / "plan", proj / "plan")
+    shutil.copytree(PLAN_FROM or scen / "plan", proj / "plan",
+                    ignore=shutil.ignore_patterns("logs", "reports", ".worktrees"))
     if legacy:
         to_legacy_plan(proj / "plan")
     if shift:
@@ -485,10 +489,14 @@ def main():
                     help="KARAKAM_JUDGE for the run: haiku turns the Worker stop guard on")
     ap.add_argument("--run-mode", choices=["single", "parallel-low", "parallel-high"],
                     help="karagoz only: send the loop prompt as karagoz:<mode>")
+    ap.add_argument("--plan-from", metavar="DIR",
+                    help="karagoz only: execute this plan directory (e.g. a hacivat run's "
+                         "proj/plan) instead of the scenario's own")
     ap.add_argument("--legacy-plan", action="store_true",
                     help="karagoz only: convert the plan to the pre-1.2 model-column contract")
     a = ap.parse_args()
-    global MAIN_EFFORT, JUDGE, RUN_MODE
+    global MAIN_EFFORT, JUDGE, RUN_MODE, PLAN_FROM
+    PLAN_FROM = Path(a.plan_from).resolve() if a.plan_from else None
     MAIN_EFFORT = a.effort
     JUDGE = a.judge
     RUN_MODE = f":{a.run_mode}" if a.run_mode else ":"
