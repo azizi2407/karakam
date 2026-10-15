@@ -189,3 +189,17 @@ A new check, `audit.py`, asks the question that advice raises for an Observer: d
 - **Hacivat got no clear saving**: $2.27–2.60 against $2.60–2.96, one or two runs each, with the plans' quality untested.
 
 Shorter instructions cost less to read but more to redo: none of it shipped, and 1.10's text stays. The audit check stays in the bench.
+
+### Lean Hacivat, with plan quality (3 plans per arm, each executed by 1.10)
+
+The lean experiment above left Hacivat open: a cheaper planning run is no gain if the plan executes worse. So the `kisalink` brief now says how the server starts, `hacivat/hidden/test_hidden.py` grades any plan's product end to end — 7-character base62 codes, the same code for the same URL, http/https only, bad bodies rejected, 302 to the original, clicks counted, 404 for unknown codes, 30 requests a minute then 429, the database path from `KISALINK_DB`, data surviving a restart; 16 tests, all passing against a reference implementation — and `run.py karagoz --scenario kisalink --plan-from <plan>` executes a plan Hacivat wrote. Both arms' plans ran on the same 1.10 Karagöz, Workers and Observers, so only the planner differs.
+
+| | 1.10 Hacivat | lean Hacivat (948 words, lean contract and panel) |
+|---|---|---|
+| planning | $2.52–2.94, 5–6 critic calls | $2.73–2.82, 6–7 critic calls |
+| plan size | `methodology.md` 791–814 words, steps 3,050–3,436 | 904–1,022, steps 3,285–3,594 |
+| critical steps | 2 · 3 · 2 | 3 · 3 · 3 |
+| execution | $3.35–4.01, 1 refactor round in 3 runs | $3.33–4.25, 1 in 3 |
+| hidden tests | 16/16 ×3 | 16/16 ×3 |
+
+The plans were equally good, and the lean planner wrote longer ones, not shorter: with less guidance it put more into the methodology and marked more steps critical, which an execution then pays for. It saved nothing; 1.10's Hacivat stays.
