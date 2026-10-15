@@ -169,3 +169,23 @@ Every step forced to `medium` — the worst case for the new rubric, which keeps
 Before 1.10 the agent definitions listed the tools a sub-agent could use, and that list cut off every MCP tool: probed with a stub MCP server, a Worker defined that way answered "no such tool", while the same Worker defined with a deny-list called it. 1.10's Worker and Observer both reached the stub.
 
 To check that a wider toolset changes nothing on an ordinary plan: $1.24 and $1.62, 18/18 in both runs. The sub-agents used only Bash, Read and Edit. The dearer run's one Opus refactor round was a real bug the Observer caught (NaN and Infinity accepted as prices), not a tool.
+
+### Lean instructions: tried, not shipped (2 runs per plan, 2 arms)
+
+Prompted by the advice that newer models follow instructions literally and do better with less of them (keep only what the model can't know), every always-read file was cut to about half, keeping the contracts and every rule that came from a measured failure: Karagöz's skill 1,696 → 897 words, Worker 592 → 344, Observer 532 → 323, Hacivat's skill 2,514 → 948, the handoff contract 1,530 → 807, the critic panel 1,003 → 435.
+
+A new check, `audit.py`, asks the question that advice raises for an Observer: does a checklist blind it to what the list doesn't name? Step 02 of `stokcu` is left "done" with code that passes every listed check but carries four defects nothing lists — a negative VAT rate accepted, the global `Decimal` precision changed (big amounts crash), debug output on stdout, and a rounding bug hidden behind a test skipped as "flaky". The 1.10 Observer reported all four in 3 runs of 3, and so did the lean one: the checklist doesn't blind it.
+
+| | 1.10 | lean | lean, 1.10 Observer |
+|---|---|---|---|
+| `stokcu` | $1.11–1.27, 0 · 0 rounds | $1.15–2.00, 0 · 2 | $1.16–1.74, 0 · 1 |
+| `refactor` (planted spec fault) | $1.43–1.48, 1 · 1 | $1.41–1.50, 1 · 1 | $1.39–1.61, 1 · 1 |
+| `fifo` | $2.85–2.87, 0 · 0 | $3.77–4.11, 1 · 1 | $3.57–4.11, 1 · 1 |
+| `hacivat` | $2.60–2.96 | $2.27 | $2.60 |
+| hidden tests | all, every run | all, every run | all, every run |
+
+- **The lean Observer failed steps beyond their criteria.** Its "the criteria are the minimum, not the limit" line made it fail real but untested gaps — a NaN price raising the wrong exception, `--ay 0000-01` crashing the CLI, tests that couldn't tell two rules apart — and each cost a refactor round that the hidden tests show bought nothing.
+- **With the 1.10 Observer back, the lean Worker still left more of those gaps.** The same Observer failed the same kinds of things in 3 of 6 runs, against none for the 1.10 Worker: the cut "turn the criteria into runnable checks first" and "read far enough to find every caller" lines were doing work.
+- **Hacivat got no clear saving**: $2.27–2.60 against $2.60–2.96, one or two runs each, with the plans' quality untested.
+
+Shorter instructions cost less to read but more to redo: none of it shipped, and 1.10's text stays. The audit check stays in the bench.
