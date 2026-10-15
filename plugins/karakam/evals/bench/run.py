@@ -429,7 +429,7 @@ def refactor_line(r):
 
 
 def report():
-    for mode_dir in sorted(RESULTS.glob("*")):
+    for mode_dir in sorted(p for p in RESULTS.glob("*") if p.name != "audit"):
         for label_dir in sorted(mode_dir.glob("*")):
             runs = [json.loads(s.read_text()) for s in sorted(label_dir.glob("run-*/summary.json"))]
             if not runs:
