@@ -1,131 +1,94 @@
 # The Handoff Contract
 
-This is the schema for the files Hacivat produces and Karagöz consumes. It is the only interface between the two skills; break the format and Karagöz cannot read the plan.
-
-Everything goes into a single output directory (suggested: `./<project>/plan/`). Layout:
+The files Hacivat writes and Karagöz reads; the only interface between the two skills.
 
 ```
 <project>/plan/
-├── methodology.md          # the constitution
-├── progress.md             # thin status ledger (the only file Karagöz reads)
-├── steps/
-│   ├── 01.md               # self-contained step files
-│   ├── 02.md
-│   └── ...
-├── logs/                   # Workers write here (Hacivat leaves it empty)
-├── reports/                # long Observer reports land here (Hacivat leaves it empty)
-└── .worktrees/             # Karagöz creates/removes these when running steps in parallel
+├── methodology.md          # the job's constitution
+├── progress.md             # the ledger: the only file Karagöz reads each tick
+├── steps/01.md, 02.md, …   # one self-contained file per step
+├── logs/                   # Workers write here (empty at handoff)
+├── reports/                # long Observer reports (empty at handoff)
+└── .worktrees/             # Karagöz's, for parallel steps
 ```
 
-**Before writing:** if the output directory already exists and its `progress.md` shows any step not `pending`, that's a previous run's real progress — don't overwrite it silently (see Hacivat's SKILL.md, "5. Write the handoff files").
+Write the content in the user's language. Field names and status values (`depends_on`, `effort`, `critical`, `files_touched`, `pending`, `done`…) are keywords: keep them in English.
 
-**Language:** write the *content* of these files in the language the user speaks. The field names and status values below (`depends_on`, `effort`, `critical`, `pending`, `done`…) are keywords — keep those as-is, in English, so both skills can parse them reliably.
-
----
+Write for a capable reader. Every line is read as an instruction, by every Worker and Observer of the step, so put down only what they can't know or work out themselves: this project's decisions, contracts, rules and traps. Leave out general engineering advice and how to do things they already know how to do.
 
 ## methodology.md
 
-The constitution of the job. The Observer keeps checking against this to decide whether work is still faithful to the plan and method. Sections:
+Short and dense; Observers check work against it.
 
 ```markdown
-# Methodology: <project name>
+# Methodology: <project>
 
 ## Goal
-<What are we building; what will be working when it's done — 3-5 sentences>
+<what will work when it's done — 3–5 sentences>
 
 ## Stack & libraries
-- <library/tool> — <why chosen, what job it does>
+- <library> — <why>
 
 ## Methods & patterns
-<Architectural approach, patterns to follow, code organization principles>
+<architecture, patterns, code organization>
 
 ## Step ordering & dependencies
-<Why this order; which step rests on which; the overall flow>
+<why this order>
 
 ## Integrity principles
-<How the steps must fit together: shared contracts, interfaces, naming,
- data flow — the rules that make the assembled parts a coherent system>
+<the shared contracts, interfaces, names and data flow that make the parts fit>
 
 ## Definition of Done + test strategy
-<When is a step "finished"; the general testing approach>
 
 ## Known limits (deliberately out of scope)
-<Honest list of what this plan does NOT solve, and why that trade-off was chosen.
- Do not use this section to bury a real hole — the Observer will check it against
- the code and reject a section that flatters the implementation.>
+<an honest list; the Observer rejects one that flatters the implementation>
 ```
-
-Keep `methodology.md` **short and dense**. Every extra paragraph costs tokens in every Worker/Observer call that reads it.
-
----
 
 ## steps/NN.md
 
-One file per step, two-digit sequential number (`01.md`, `02.md`…). It must be **self-contained**: a Worker should be able to read only this file and finish the step, without being forced to open anything else.
+Two-digit numbers (`01.md`). Self-contained: a Worker reads only this file.
 
 ```markdown
 # Step NN: <title>
 
 ## Goal
-<What this step produces — one sentence>
+<what this step produces — one sentence>
 
 ## Dependencies
-depends_on: [<step numbers>, or empty []]
+depends_on: [<step numbers>] or []
 
 ## Effort
 effort: low | medium | high
 critical: true | false
-rationale: <why this effort / why critical>
-
-Only list a dependency that has a *real* reason: either this step writes to the
-same file as an earlier one, or it consumes a contract/file that step produced.
-Sequence number alone is not a reason. This also matters for parallel execution:
-two steps with no real dependency and disjoint `files_touched` may be run
-concurrently by Karagöz — an invented dependency serializes them for nothing.
+rationale: <one line>
 
 ## Relevant methodology
-<Copy ONLY the slice of methodology.md that concerns this step.
- This is what lets the Worker skip reading the whole methodology.>
+<only the contracts, interfaces and domain rules this step needs>
 
 ## Worker prompt
-<The task-specific instruction handed to the Worker: exactly what to do,
- which files to touch, which interfaces to honor. The general Worker protocol
- (test-first, scope lock, log, reply format) lives in the Worker agent
- definition — don't repeat it here.>
+<what to build and where, the interfaces to honor, and the traps the Worker
+ couldn't foresee. Not the general protocol (test-first, scope, log, reply):
+ that is in the Worker's definition.>
 
 ## Acceptance criteria (executable, un-gameable)
-<Runnable checks that decide "done": which test must pass, which command must
- print what, which behavior must be observable.
- Make them un-gameable: forbid shortcuts ("do not create the file by hand"),
- require an observable side effect, and prefer signals that can't be faked
- (timing, ordering) over ones a Worker can stage.
- When the step changes something other code calls, at least one check goes
- through that caller (the CLI, the client, the endpoint) — a unit test of the
- changed piece alone passes while the product is still broken.>
+<runnable checks that decide "done">
 
 ## Observer checks
-<The concrete things the Observer must verify: fidelity to the methodology,
- not breaking integrity, correct interface, nothing missing.>
+<what to verify beyond the criteria, if anything>
 
 ## Outputs
-log: logs/NN.md          # the Worker records its work here
-files_touched: <the exact files this step may write to — one line, comma-separated>
+log: logs/NN.md
+files_touched: <exact files this step may write — one line, comma-separated>
 ```
 
-**`files_touched` is a scope contract, not documentation** — and keep it on one line: Karagöz reads it with a single `grep '^files_touched:'` to decide which steps can run in parallel, so a list wrapped onto a second line would be checked incomplete. The Worker is forbidden from touching anything outside it, and the Observer fails the step if something else changed. So list it precisely: too narrow and honest work gets rejected; too wide (or vague, like "the whole module") and you hand a Worker license to wander into a later step's territory — half-doing work that will then be marked `done` by whoever finds it "already there". If two steps genuinely must write to the same file, that's a real dependency: say so in `depends_on` so they run in sequence. A precise list also unlocks Karagöz's parallel path: steps with disjoint `files_touched` and no real `depends_on` between them can run concurrently, each in its own isolated worktree.
-
-**Remote work through MCP.** Workers and Observers inherit the session's MCP servers, so a step can read or write a Drive, a database or a tracker. `files_touched` and git don't reach there: a worktree doesn't isolate a remote change and a failed step's revert doesn't undo it. So for a step that writes remotely:
-- name the server and the exact remote resources (folder, file, table) in the Worker prompt, and what the Observer should look at through the same server's read tools in "Observer checks";
-- two steps that write the same remote resource have a real dependency — put it in `depends_on`, since nothing else keeps them apart in a parallel batch;
-- keep a remote write idempotent where you can ("create the file if missing, otherwise overwrite it"), because a failed step's next Worker starts from whatever the last one left there.
-
----
+- **`depends_on`**: only a real reason — the step writes a file an earlier one writes, or consumes what it produced. An invented dependency serializes steps that could run in parallel.
+- **`files_touched`** is the scope boundary: the Worker may touch nothing else and the Observer fails the step if anything else changed. Too narrow rejects honest work; too wide lets a Worker half-do a later step, which then gets marked `done` unchecked. Keep it on one line: Karagöz reads it with one `grep '^files_touched:'` to find steps that can run in parallel. Two steps writing one file have a real dependency.
+- **Acceptance criteria** run (a test, a command and its output) and can't be gamed: if a Worker could pass one without exercising the real behavior — staging the state it should prove — forbid the shortcut, require an observable side effect, or use a signal that can't be faked. When the step changes something other code uses, one criterion goes through that caller.
+- **Remote work through MCP** (a Drive, a database, a tracker): `files_touched` and git don't reach it, worktrees don't isolate it and nothing reverts it. Name the server and the exact resources in the Worker prompt and what the Observer should read back in Observer checks; give two steps writing the same remote resource a `depends_on`; keep remote writes idempotent ("create if missing, otherwise overwrite").
 
 ## progress.md
 
-The **only** file Karagöz reads each tick. That's why it must stay **thin** — a status table, not a report dump. Long Observer reports go to `reports/NN-observer.md`; here you keep a one-line summary plus the path.
-
-Hacivat builds the skeleton (everything `pending`), Karagöz fills it in.
+Hacivat writes every row `pending`; Karagöz fills it in. Keep it a thin table: long reports go to `reports/`, the note holds one line and a path.
 
 ```markdown
 # Progress
@@ -134,35 +97,15 @@ Hacivat builds the skeleton (everything `pending`), Karagöz fills it in.
 |------|--------|-----------|--------|----------|------|------|
 | 01 | pending | - | medium | no | steps/01.md | |
 | 02 | pending | 01 | high | yes | steps/02.md | |
-| 03 | pending | 01 | low | no | steps/03.md | |
 ```
 
-The `critical` column is `yes` / `no` — the same flag the step file writes as `critical: true` / `false`.
+- `effort` and `critical` repeat the step file's values (`critical: true` = `yes`), so Karagöz never opens a step file to spawn its agents.
+- Status: `pending` · `in_progress` (a Worker is on it) · `done` (audited, committed) · `refactoring` (failed its audit, being redone) · `blocked` (failed after the last refactor round; dependents wait). `in_progress` or `refactoring` at the start of a tick means the tick that set it died.
+- Older plans have a `model` column (`opus | sonnet | haiku`) instead of `effort`; Karagöz reads it as `high | medium | low`.
+- 30+ steps: Karagöz may archive settled rows into `progress-archive.md`.
 
-Status values: `pending` · `in_progress` · `done` · `refactoring` · `blocked`
+## What Karagöz relies on
 
-- `pending` — not started
-- `in_progress` — a Worker is currently working this step (or was, when the tick that owned it died mid-way — see Karagöz's crash-recovery step)
-- `done` — Worker finished, Observer approved
-- `refactoring` — Observer rejected it, being fixed (within the step)
-- `blocked` — failed after the max refactor rounds; its dependents wait
-
-`in_progress` is set by a tick right before it spawns a Worker and cleared before that tick ends. Finding it still set at the *start* of a tick is a crash signal, not a normal state — it means the previous tick never got to close it out. The same is true of `refactoring`: a refactor cycle runs start-to-finish within a single tick, so finding it still set at the start of the next one is the identical crash signal, and Karagöz's crash recovery treats both alike.
-
-**Why `effort` and `critical` live here:** Karagöz must know the effort when spawning a Worker and the criticality flag when setting up the Observer. If that information existed only inside `steps/NN.md`, the Coordinator would have to open the step file every tick — and the "read only progress.md" rule, i.e. the entire context economy, would collapse on the first tick. These values must agree with `steps/NN.md` (`yes` = `true`); Hacivat writes both.
-
-**Plans written before `effort` existed** have a `model` column (`opus | sonnet | haiku`) instead. Karagöz reads it as `high | medium | low` respectively; the column never picks the Worker's model.
-
-**At scale, archive what's settled.** If the plan is large enough (30+ steps) that `progress.md` itself becomes costly to read every tick, Karagöz may move rows for steps that are `done` **and** whose dependents are all `done` too (so nothing will ever query them again) into `progress-archive.md`, leaving a one-line stub in the live table. Skip this on a normal-sized plan — it's ceremony the ledger doesn't need until it's genuinely bloated.
-
----
-
-## What Karagöz expects (the consumer side)
-
-Karagöz relies on this contract:
-1. `progress.md` exists and uses the table format above, including `effort` and `critical`.
-2. Every `pending` step has a `steps/NN.md` and it is self-contained.
-3. Every step declares `effort`, `critical`, `depends_on`, acceptance criteria and Observer checks.
-4. `logs/` and `reports/` directories exist (even if empty).
-
-With those four in place, Karagöz executes the plan without friction.
+1. `progress.md` in the format above, with `effort` and `critical`.
+2. A self-contained `steps/NN.md` for every `pending` step, declaring `effort`, `critical`, `depends_on`, acceptance criteria and Observer checks.
+3. `logs/` and `reports/` exist.

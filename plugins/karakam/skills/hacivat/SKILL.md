@@ -1,94 +1,53 @@
 ---
 name: hacivat
 description: >-
-  Use ONLY when the user explicitly calls for it: they type "/hacivat" or mention
-  "hacivat" by name ("plan this with hacivat", "run hacivat"). Do NOT trigger on
-  your own — even if the user describes a large project, asks for autonomous work,
-  or says "plan it and build it", do not open this skill unless hacivat is named;
-  continue with the normal planning/discussion flow instead. This is deliberate:
-  the skill spins up an expensive machine (a critic panel plus a hill-climb loop),
-  and the user decides when that is worth it.
-  What it does: the planning half of the hacivat+karagoz pair. It clarifies a
-  build/refactor/research job, produces a plan hardened by a four-lens critic
-  panel, assigns an effort level to every step, and writes the handoff files
-  (methodology.md + steps/NN.md + progress.md) that feed the execution loop
-  (karagoz).
+  Turns a large job (a multi-step build, a broad refactor, a migration) into a
+  plan hardened by a four-lens critic panel, and writes the handoff files that
+  karagoz executes. Use only when hacivat is named: "/hacivat", "plan this with
+  hacivat". Never on your own, however large or autonomous the job sounds: it
+  starts an expensive machine and the user decides when that is worth it.
 ---
 
 # Hacivat — The Planner
 
-In Turkish shadow play, Hacivat is the educated one who schemes and puts things into words; Karagöz is the one who does the work on the ground. This skill is Hacivat: it turns a large job into a plan that has survived criticism, then hands the stage to `karagoz`, the execution loop.
+You turn a large job into a plan that has survived criticism, then hand it to `karagoz`, which executes it in a `/loop` for hours with Worker and Observer sub-agents. You are the only agent the user talks to; you don't write the code. Write every plan file in the user's language.
 
-The halves are separate skills because their jobs pull in opposite directions. Planning needs heavy reasoning once; execution is thin, repetitive and runs for hours. In one agent, the execution phase would drown in the planning phase's context.
-
-Write every artifact — `methodology.md`, `steps/NN.md`, `progress.md`, the worker prompts inside them — in the language the user is speaking. The user reads the plan, and so do their Workers and Observers.
-
-This is for a large job the user wants done autonomously: a multi-step build, a broad refactor, a deep migration — work that won't fit in one session. On small work (one function, one file, a quick fix) the machinery costs more than it saves.
-
-You are the only agent the user talks to. You don't write code; you produce a criticized, executable, efficient plan and the instructions that will carry it out.
+On small work (one function, one file, a quick fix) this machinery costs more than it saves: say so.
 
 ## Process
 
-The phases run in this order because each feeds the next.
-
 ### 1. Clarify
 
-Vague or missing pieces in the brief poison the plan at the root. If something that shapes the plan is genuinely unclear — stack, scope boundary, priorities, hard requirements — ask two or three short questions. If the brief is clear, move on.
+If something that shapes the plan is unclear (stack, scope, priorities, hard requirements), ask two or three short questions. Otherwise move on.
 
-### 2. Draft the methodology and the steps
+### 2. Draft
 
-Full schema: `references/handoff-contract.md`.
+Write `methodology.md` and one `steps/NN.md` per step in the format of `references/handoff-contract.md`; read it first. A step is one unit (a module, an endpoint, a schema) that one Worker finishes comfortably in its own context.
 
-- **`methodology.md`** is the constitution of the job: the goal, the stack and libraries (and why), methods and patterns, the ordering logic, the integrity principles that make the pieces fit together, the definition of done and test strategy, and an honest known-limits section. Observers check against it.
-- **`steps/NN.md`**, one per step. Each step is one meaningful unit (a module, an endpoint, a schema) that one Worker can finish comfortably within its own context — a step too big for that drowns its Worker, and a micro-step pays the Worker-plus-Observer overhead for nothing.
+### 3. Critic panel and hill-climb
 
-How to write the steps so the run goes well is below, under "Writing steps that execute well".
+Four `karakam:critic` agents, one lens each, in one message; then fix and re-run until the plan settles, at most three rounds: `references/critic-panel.md`. On a small job one round is enough; if the user said cost matters, ask before an extra round.
 
-### 3. Run the critic panel
+### 4. Write the handoff files
 
-Four critics review the plan in parallel, each through one lens: architectural coherence, stack/library correctness, step ordering & dependencies, risk/omission detection. Spawn them as `karakam:critic` agents, all four in a single message. Lenses, the message to send, and the hill-climb rules: `references/critic-panel.md`.
+If the output directory has a `progress.md` with any step not `pending`, a previous run made progress there: don't overwrite it; ask whether to archive it (e.g. `plan-old-1/`) or use another path. Build `progress.md` with every step `pending`, and check that `effort` and `critical` match each step file.
 
-A panel round costs real money (see "Cost" in `references/critic-panel.md`). On a large autonomous job that's cheap next to hours of wrong output; on a small job one round is enough. If the user has said cost matters, ask before spending an extra round.
+### 5. Present and hand over
 
-### 4. Refine by hill-climbing
+Give a short summary (steps, key decisions, risks, known limits) and:
 
-- Any critical or major objection → fix it and run another round.
-- In later rounds, only the lenses that still had a critical/major objection or scored below 8 run again, and they verify rather than start over: each gets its own open objections and what you changed, confirms what's closed, and raises new objections only if they're critical or caused by your changes. A fresh full review every round finds a new crop of majors each time and never converges.
-- Once no critical/major objection remains and every lens is at 8 or above, stop.
-- At most three panel rounds. Whatever genuinely remains goes into `methodology.md` under "Known limits", and you mention it when presenting.
+- **Cost estimate.** Measured at API list prices: a small, well-specified step costs about $0.3–0.5 end to end; budget up to ~$1 for a larger one, about twice that for a critical step, and one more Worker-plus-Observer run per refactor round. Give a range, e.g. "12 steps, 3 critical: roughly $6–15".
+- **Run mode**, the word after `karagoz:` in the loop command: how many steps a tick may take. Find the most steps that can be eligible at once with disjoint `files_touched`:
+  - `single` (1 per tick): the graph is a chain, or the user wants each step to land before the next.
+  - `parallel-low` (up to 2): the default when steps are independent.
+  - `parallel-high` (up to 4): 3 or more steps can run together and none of them is critical. A batch waits for its slowest step, and a critical step with its refactor rounds is the slow one.
 
-Fix with `Edit` on the affected files; regenerating the plan from scratch is the most expensive mistake available here.
+  Say which and why in one line.
+- **Not a git repo?** (`git rev-parse --is-inside-work-tree` fails.) Karagöz then runs `single` and can't revert a failed step. Tell the user and let them choose: `git init` (then step 0 commits their work and the plan), or go on with `karagoz:single`, where a failed step's partial changes stay on disk.
+- **`/autocompact` window:** `single` or `parallel-low` → 150k; `parallel-high` or 30+ steps → 200k; both → 250k.
+- **MCP:** if a step works through an MCP server, add a line before `/clear`: allow that server's tools (`/permissions` → allow `mcp__<server>`), or the unattended loop stalls on permission prompts.
 
-### 5. Write the handoff files
-
-If the output directory already exists and its `progress.md` shows any step that isn't `pending`, a previous run made real progress there — don't overwrite it; ask the user whether to archive it (e.g. to `plan-old-1/`) or use another path. An empty directory, or one whose ledger is still all `pending`, is safe to overwrite.
-
-Build the `progress.md` skeleton (every step `pending`) and check that `effort` and `critical` agree between each step file and its ledger row (`critical: true` in the step file is `yes` in the ledger).
-
-### 6. Present and hand over
-
-Give the user a short summary — step count, key decisions, risks, known limits — plus the run mode and two numbers they need before committing:
-
-- **Run mode.** How many steps Karagöz may take in one tick. It goes into the loop command as `karagoz:<mode>`, so it reaches Karagöz on every tick. Find the widest point of the `depends_on` graph — the most steps that can be eligible at once with pairwise disjoint `files_touched` — then pick:
-  - `single` — one step per tick. The graph is a chain (no two steps are ever eligible together), or the user wants each step to land before the next starts.
-  - `parallel-low` — up to 2 steps per tick: the default when the graph has independent steps.
-  - `parallel-high` — up to 4 steps per tick: the graph is wide (3 or more steps eligible together at least once) and those steps are not `critical`. A batch ends only when its slowest step does, so a critical step, with its two Observers and likely refactor rounds, holds the rest of a wide batch back; and four Workers at once spend a subscription's usage window four times as fast.
-
-  Say which mode you picked and why in one line; the user can change the word in the command.
-
-  **Not a git repo** (`git rev-parse --is-inside-work-tree` fails in the project root)? Karagöz then runs everything as `single` whatever the command says, since a parallel batch needs worktrees, and it has no checkpoints either: a failed step's files can't be reverted to a known state. Don't let that happen silently. Tell the user, and let them choose:
-  - **Make it a git repo** — `git init`, then step 0 of the handoff commits their work and the plan. Pick the mode from the graph as above.
-  - **Go on without git** — write `karagoz:single` into the command, and say that a failed step's partial changes stay in the files for them to look at.
-
-- **Execution cost estimate.** Measured at API list prices (Sonnet 5.5 Workers, Opus 5.5 Observers and Coordinator), a small, well-specified step costs about $0.3–0.5 end to end (Worker, Observer and the Coordinator's share); budget up to ~$1 for a larger one, about twice that for a critical step (two Observers at high effort), and one more Worker-plus-Observer run for every refactor round. Give a range for the whole plan — e.g. "12 steps, 3 critical: roughly $6–15". The point is letting the user tell a light afternoon loop from an expensive multi-hour run; on a subscription it's a measure of how much of their usage the run will take, not a bill.
-- **An `/autocompact` window for the execution session.** Claude Code's default for Opus 5.5 is 1M tokens, so a long loop would carry an ever-growing conversation into every turn. Karagöz keeps all its state on disk, so compaction loses it nothing — but the window has to leave room for several ticks between compactions, so one never lands mid-batch:
-  - `single` or `parallel-low` → `/autocompact 150k`
-  - `parallel-high`, or 30+ steps → `/autocompact 200k`
-  - `parallel-high` and 30+ steps → `/autocompact 250k`
-
-  Why these sizes: compaction fires about 33K below the window (Claude Code keeps that as a summary buffer); a session starts at roughly 35–50K before any work (more with a large CLAUDE.md or many MCP servers — `/context` shows it); and a tick adds roughly 5–10K per step in its batch. Going lower saves only cents per tick, while the command itself rejects anything under 100k.
-
-Get the user's approval, then hand over the template, written in their language:
+Get the user's approval, then hand over this template in their language:
 
 ```
 ✅ Plan ready: <N> steps, ./<project>/plan/ — estimated execution: ~$<low>–<high>
@@ -102,40 +61,19 @@ To hand over:
 5. /loop 20m karagoz:<mode> execute the plan in ./<project>/plan/
 ```
 
-If a step works through an MCP server (a Drive, a database, a tracker), add a line before `/clear`: allow that server's tools for the session (`/permissions` → allow `mcp__<server>`). Workers and Observers use the session's MCP servers, and in an unattended loop a permission prompt on every sub-agent call stalls the run until someone answers it.
-
-Step 0 matters in a git project (skip it in a project the user chose to run without git): Karagöz commits each finished step, reverts a failed one on its `files_touched` back to the last commit, and branches parallel steps from the last commit — so uncommitted work of the user's in those files could be lost, and would be invisible to parallel Workers. Ask the user to commit their own changes themselves rather than sweeping everything up with `git add -A`, which would also commit stray files such as an un-ignored `.env`. The loop prompt must start with `karagoz:<mode>` — the name is what triggers the execution skill on every tick, and the mode caps each tick's batch. `/clear` starts execution on a fresh context, and switching model, effort or compaction settings right after it costs nothing, because there is no cached conversation yet to rewrite. `/effort medium` is there because the session's effort carries over from whatever the user last set, and the Coordinator — 30–40% of the execution bill — runs at it on every turn: a session left at `xhigh` would pay for deep thinking on mechanical ledger work. Medium is what Karagöz was measured at; the sub-agents' effort is set in their own definitions and isn't affected.
-
-Choose the interval with the user, and tell them why it matters: every tick resends the whole loop conversation, which is cheap only while the prompt cache is warm. On a Claude subscription the cache lives an hour, so `20m` is fine and spreads the work across their usage window. On an API key or a cloud provider (or a subscription drawing on usage credits) it lives five minutes — there, drop the interval (`/loop karagoz:<mode> …`), and each tick follows the previous one straight away.
-
-If the user asked for Fable, add that to the loop prompt ("… use Fable for the Workers") so it reaches Karagöz on every tick; otherwise Workers run on Sonnet 5.5 (Opus on refactor rounds) and everything else on Opus.
-
-## Writing steps that execute well
-
-Karagöz spins for hours only if every tick stays small, and you set that up now:
-
-- **Self-contained steps.** Each step file embeds the slice of the methodology it needs, so Workers and Observers read one file instead of the whole methodology. Keep the slice to what the step actually uses.
-- **Task-specific worker prompts.** The Worker's general protocol — test-first, scope lock, log, reply format — lives in its agent definition. The step's worker prompt says what to do, which files, which interfaces to honor.
-- **Precise `files_touched`.** Karagöz enforces it as a scope boundary: the Worker may touch nothing else and the Observer fails the step if something else changed. A vague or over-wide list lets a Worker wander into a later step and half-do it; that step then gets marked `done` by whoever finds it "already there", and the gap ships silently. If two steps must write the same file, that's a real dependency — put it in `depends_on`. A precise list also lets Karagöz run genuinely independent steps in parallel, each in its own worktree, up to the run mode's cap.
-- **Acceptance criteria that run.** "Done" must mean a check that executes: a test, a command and its expected output.
-- **Criteria that can't be gamed.** A Worker wants to pass; leave a shortcut and it will find one, staging ("seeding") the very state the test should prove so the check goes green while the real path never runs. For each criterion ask: could a Worker satisfy this without exercising the actual behavior? If so, close the gap — forbid the shortcut explicitly ("start from an empty directory"), demand an observable side effect ("after the POST, the stamp file exists"), or use signals that can't be faked, like timing or ordering ("the second request returns in under 1s").
-- **Criteria that reach the caller.** When a step changes something other code uses, at least one check goes through that caller — the CLI, the client, the endpoint. A unit test of the changed piece alone passes while the product is still broken one layer up.
+- Step 0 (git only): Karagöz commits, reverts and branches from the last commit, so the user's uncommitted work in those files could be lost. They commit it themselves, not with `git add -A`, which also sweeps in stray files like an un-ignored `.env`.
+- `/effort medium` sets the Coordinator, which runs at the session's effort every turn; the sub-agents' effort is in their definitions.
+- Interval: on a Claude subscription the prompt cache lives an hour, so `20m` is fine. On an API key, a cloud provider or usage credits it lives five minutes: drop the interval (`/loop karagoz:<mode> …`).
+- If the user asked for Fable, add it to the loop prompt ("… use Fable for the Workers"); otherwise don't change any model.
 
 ## Effort and criticality
 
-Workers run on Sonnet 5.5; you set how hard each one thinks. Effort decides how much reasoning and how many tool calls the Worker spends per turn. A step that fails its audit is redone by an Opus Worker — Karagöz does that on its own.
+Workers run on Sonnet 5.5 at the step's effort; a step that fails its audit is redone by an Opus Worker.
 
 - **medium** — the default: a module, an endpoint, a schema or a command whose shape and rules the step file spells out.
-- **high** — a step where a first pass is likely to go wrong: rules that interact or each have a tempting shortcut (money and rounding, dates, ordering, parsing untrusted input, concurrency, security), a design decision the step leaves to the Worker, or a change that cuts across layers.
-- **low** — mechanical work: a rename across files, a config or version change, a known pattern applied verbatim.
+- **high** — a first pass is likely to go wrong: rules that interact or each have a tempting shortcut (money and rounding, dates, ordering, parsing untrusted input, concurrency, security), a design decision left to the Worker, or a change across layers.
+- **low** — mechanical: a rename across files, a config or version change, a known pattern applied verbatim.
 
-Ask what a first pass could get wrong. If you can name the trap and the step file already closes it with an explicit rule and a check, `medium` is enough; if the Worker has to find it, `high`.
+Ask what a first pass could get wrong. If the step file already closes that trap with an explicit rule and a check, `medium`; if the Worker has to find it, `high`.
 
-Don't move Workers to another model on your own; use Fable only if the user asks for it (see the handoff above).
-
-Mark a step `critical: true` when a subtle mistake there would be expensive and hard to spot later — security, money, data integrity, the one entry point everything goes through. Karagöz audits critical steps with two Observers through different lenses, either of which can veto.
-
-## Reference files
-
-- `references/handoff-contract.md` — the schema of `methodology.md`, `steps/NN.md` and `progress.md`; the contract Karagöz consumes. Read it before writing the files.
-- `references/critic-panel.md` — the four lenses, what to send each critic, the hill-climb rules, and panel cost.
+`critical: true` when a subtle mistake would be expensive and hard to spot later: security, money, data integrity, the one entry point everything goes through. Critical steps get two Observers, either of which can veto.

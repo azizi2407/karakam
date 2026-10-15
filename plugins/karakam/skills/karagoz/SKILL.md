@@ -1,106 +1,70 @@
 ---
 name: karagoz
 description: >-
-  Use ONLY when "karagoz" is named: the user types "/karagoz", or runs the command
-  Hacivat handed them ("karagoz:parallel-low execute the plan in ./project/plan/",
-  or its equivalent in their language; the word after "karagoz:" is the run
-  mode), which arrives on every tick under /loop and
-  therefore triggers this skill naturally for the whole run. Do NOT trigger on your
-  own: even if a plan directory is sitting right there and the user says "apply
-  this" or "pick up where it left off", do not open this skill unless karagoz is
-  named.
-  What it does: the execution half of the hacivat+karagoz pair. Acting as
-  Coordinator, each tick it picks the next eligible step(s) from progress.md, hands
-  them to Worker sub-agents (in parallel when independent), has Observers audit the
-  work, updates the status, and closes the loop when the work is done. Requires a
-  plan directory in Hacivat's format (methodology.md + steps/NN.md + progress.md);
-  a loose TODO or issue list is not this skill's contract.
+  Executes a plan written by hacivat, one /loop tick at a time: Worker sub-agents
+  do each step, Observer sub-agents audit it, progress.md records the outcome.
+  Use only when karagoz is named: "/karagoz", or the loop command Hacivat hands
+  over ("karagoz:<mode> execute the plan in ./project/plan/", or the same in the
+  user's language). Never on your own, even with a plan directory at hand and a
+  request to apply it or carry on.
 ---
 
 # Karagöz — The Executor
 
-Hacivat schemed it up; Karagöz does the work on the ground. This skill runs one tick of an execution loop, usually under `/loop`. You are the **Coordinator**: you pick the next step(s) from the ledger, send each to a Worker sub-agent, have Observer sub-agents audit the result, and record the outcome. You don't write code or produce the work yourself.
+You are the Coordinator of one tick of a plan's execution loop: pick the next step(s) from the ledger, hand each to a Worker sub-agent, have Observers audit it, record the outcome. You don't do the work yourself. Write notes and talk to the user in their language.
 
-Talk to the user, and write into `progress.md`, in the language they are speaking; the plan files are in their language too.
+Every tick runs in the same conversation, which is resent on every later turn for hours, so stay thin:
+- Read only `<plan-dir>/progress.md`, fresh each tick; it is the only state. Pass sub-agents paths, never contents. From a step file read at most its `files_touched` line. Open a file under `references/` only in the situation that names it.
+- Mark steps `in_progress` before you spawn: that is how the next tick recovers a crashed one.
+- One edit per ledger change; independent calls in one message.
+- On a plan of 30+ steps, move `done` rows whose dependents are all `done` into `progress-archive.md`, leaving `| NN | done | - | - | - | - | archived |`.
 
-## Stay thin
-
-Every `/loop` tick runs in the same conversation, so everything you put into your context this tick is resent on every later turn of the run — for hours. The design keeps you thin:
-
-- **Pass paths, not contents.** Tell a sub-agent "apply `steps/03.md`"; don't read 03.md yourself. From a step file you read one line at most — its `files_touched`, when you need it for the parallel check.
-- **The ledger is the only state.** Read `progress.md` fresh every tick and trust nothing you remember from earlier ticks — the conversation may have been compacted since, and that loses nothing, because everything that matters is on disk.
-- **Read only `progress.md`.** Not `methodology.md`, not `logs/`, not the code — those belong to the sub-agents. The files under `references/` are for the situations named below; open one only when its situation arises.
-- **Mark `in_progress` before you spawn.** This one extra write is what lets the next tick recover a crashed one instead of silently duplicating it.
-- **Batch your own calls.** One edit per ledger change covering every affected row; independent tool calls in one message.
-- **At scale, archive.** On a plan of 30+ steps, when `progress.md` itself gets expensive to read, move rows that are `done` and whose dependents are all `done` into `progress-archive.md`, leaving a stub row (`| NN | done | - | - | - | - | archived |`).
+Formats: `references/handoff-contract.md`. Git operations on a step's files go through `scripts/stepgit.sh` in this skill's directory.
 
 ## A tick
 
-The handoff contract (the ledger and step-file format) is in `references/handoff-contract.md`, identical to Hacivat's. Git operations on a step's files go through `scripts/stepgit.sh` in this skill's base directory — `commit` and `revert` handle new, deleted and missing paths, which plain `git add` / `git checkout` on a `files_touched` list do not.
-
 ### 1. Read the ledger
 
-Read `<plan-dir>/progress.md`.
-
-- A row still `in_progress` or `refactoring` means the tick that owned it died. Follow `references/recovery.md` for each such step before anything else.
-- **Eligible** = `pending` and every `depends_on` step `done`. None eligible → **End of loop**.
-- A `pending` row whose note carries `refactor r/3 @<worker>` was interrupted mid-refactor: its next Worker is `karakam:worker-<worker>` (e.g. `@opus-high`) and the round count carries on from `r`. A note from an older version names a bare effort (`@medium`, `@high`): resume at `opus-high`, or `opus-xhigh` for `@xhigh`.
-- The row gives you `effort` and `critical`. A plan from before `effort` existed has a `model` column instead: read `opus` / `sonnet` / `haiku` as `high` / `medium` / `low`. If a row has neither, fill both columns once from the step files and carry on.
+- A row left `in_progress` or `refactoring` → its tick died: `references/recovery.md`, before anything else.
+- **Eligible** = `pending` with every `depends_on` step `done`. None → **End of loop**.
+- A `pending` note with `refactor r/3 @<worker>` was interrupted mid-refactor: resume with `karakam:worker-<worker>` from round `r`. An older note with a bare effort (`@medium`, `@high`) resumes at `opus-high` (`@xhigh` → `opus-xhigh`).
+- A plan with a `model` column instead of `effort`: `opus`/`sonnet`/`haiku` = `high`/`medium`/`low`. A row with neither: fill both once from the step files.
 
 ### 2. Send the Workers
 
-The run mode is the word right after `karagoz:` in the prompt that started this tick, and it caps how many steps a tick takes:
+The word after `karagoz:` in the prompt that started this tick is the run mode: `single` takes 1 step per tick, `parallel-low` up to 2, `parallel-high` up to 4. No mode → `parallel-high`. Not a git repo → `single`.
 
-| Mode | Steps per tick |
-|---|---|
-| `single` | 1 |
-| `parallel-low` | up to 2 |
-| `parallel-high` | up to 4 |
+- One eligible step, or `single` → the first eligible step, in the project root.
+- Several → `grep -H '^files_touched:'` their step files in one call; take them in step order up to the cap, skipping any that overlaps one already taken (note it: a dependency Hacivat missed). Several taken → a parallel batch, one git worktree each: `references/parallel.md`.
 
-No mode in the prompt (a handoff from before 1.9, or a bare `/karagoz`) → `parallel-high`. A non-git project runs `single` whatever the mode, since a parallel batch needs worktrees.
+Mark the batch `in_progress`, then spawn all its Workers in one message:
+- **Agent:** `karakam:worker-<effort>`. Don't override its model; pass `model: fable` only if the user asked for Fable in this run, then on every Worker.
+- **Message:** the project root (or the step's worktree), and the step file and plan directory as absolute paths in the main tree, even for a worktree step.
 
-- **One eligible step, or mode `single`** → take the first eligible step in step order; it runs in the project root.
-- **Several** → get their `files_touched` lines in one call (`grep -H '^files_touched:' <plan-dir>/steps/NN.md …`). Take them in step order, up to the mode's cap, skipping any whose list overlaps one already taken; the skipped ones wait for a later tick (an overlap is a dependency Hacivat missed — say so in the note). One step taken → it runs in the project root. Several → they run as a parallel batch, each in its own git worktree: follow `references/parallel.md`.
+An agent call that errors or returns nothing is `FAIL: agent call did not return`, handled in step 4.
 
-Mark the batch `in_progress` in one edit, then spawn — all Workers of a batch in a single message:
+### 3. Audit
 
-- **Agent:** `karakam:worker-<effort>` — Sonnet at the step's effort: `low`, `medium` or `high`.
-- **Message:** the project root (or the step's worktree path), the step file path, and the plan directory. That's all — the step file carries the task and the agent definition carries the protocol. Give the step file and plan directory as absolute paths in the main tree, even for a worktree step: the worktree's copy of the plan is a snapshot from when it branched, without the live ledger or any spec fix since, and logs written there vanish with the worktree.
-- **Model:** the agent definition sets it. Don't override it — pass `model: fable` only when the user has explicitly asked for Fable in this run (then on every Worker, refactor rounds included).
-
-A Worker or Observer call that returns nothing or errors out is a `FAIL: agent call did not return` and goes through step 4 like any other failure, not a silent retry.
-
-### 3. Have Observers audit it
-
-Audit each step once its Worker has returned — the Observers of a whole batch can go out in one message:
-
-- **Not critical** → one `karakam:observer-medium`.
-- **Critical** (`yes` in the ledger) → two `karakam:observer-high`, one with the lens `behavior` ("run it: does it actually work and produce the right output?") and one with the lens `integrity` ("is it faithful to the methodology and consistent with the rest of the system?"). If either says FAIL, the step fails.
-- **Message:** the tree the step ran in (project root or its worktree), the step file and log paths (`<plan-dir>/logs/NN.md`, absolute, in the main tree), and the lens if any.
+Once a Worker returns (a batch's Observers go out in one message):
+- Not critical → one `karakam:observer-medium`.
+- Critical → two `karakam:observer-high`, lens `behavior` (does it work and give the right output?) and lens `integrity` (is it faithful to the methodology and the rest of the system?). Either FAIL fails the step.
+- **Message:** the tree the step ran in, the step file and log path (`<plan-dir>/logs/NN.md`, absolute, main tree), and the lens if any.
 
 ### 4. Record the outcome
 
-- **PASS** → checkpoint first, then mark it `done` with a one-line note. A step that ran in the project root is committed there: `stepgit.sh commit "karagoz step NN: <title>" <files_touched>`; a worktree step is landed from the project root with `stepgit.sh land` — commit in its worktree, merge, clean up (`references/parallel.md`). In a non-git project there is nothing to checkpoint. The order matters: recovery and blocked-step cleanup revert a step's files to HEAD, and parallel worktrees branch from HEAD, so a step marked `done` before its commit lands could be silently destroyed or be invisible to the next batch; with the commit first, a crash in between is recognisable from the commit message (see `references/recovery.md`).
-  - If the commit itself fails (a failing hook, no git identity — `stepgit.sh` has already retried once), the step passed but isn't checkpointed, and every later step would hit the same wall. Mark it `blocked` with the git error in the note, leave its files as they are, and end the loop, telling the user what to fix.
-- **FAIL** → if the Worker followed the spec and the spec itself looks wrong (the Observer's evidence contradicts the spec, or the two critical Observers disagree), follow `references/failure.md` before refactoring. Otherwise refactor within the step:
-  - Mark it `refactoring` with the round and Worker in the note, e.g. `refactor 1/3 @opus-high` — the note is the only place a later tick can see how many rounds are spent. Keep any `recovered Nx` already in the note.
-  - The first refactor round goes to `karakam:worker-opus-high`, later ones to `karakam:worker-opus-xhigh`, each with the Observer's findings or report path in its message. Then audit again. A step the Sonnet Worker couldn't get right gets a stronger model on the retry, not just more thinking from the same one.
-  - If a round changed only a plan or doc file and no code, re-run only the Observer lens that objected.
-  - At most three rounds. PASS → as above. Still FAIL → mark it `blocked`, clean up per `references/failure.md`, and continue: its dependents wait, independent steps carry on next tick.
+- **PASS** → commit first, then mark `done` with a one-line note; a crash in between is then recognisable from the commit (`references/recovery.md`). Project root: `stepgit.sh commit "karagoz step NN: <title>" <files_touched>`. Worktree: `stepgit.sh land` from the project root (`references/parallel.md`). Not a git repo: nothing to commit.
+  - The commit fails (a hook, no git identity; `stepgit.sh` already retried) → mark it `blocked` with the error, leave its files, end the loop and tell the user what to fix.
+- **FAIL** → if the Worker followed the spec and the spec looks wrong (the evidence contradicts it, or the two critical Observers disagree): `references/failure.md` first. Otherwise refactor:
+  - Mark `refactoring`, note `refactor r/3 @<worker>` (keep any `recovered Nx`).
+  - Round 1 → `karakam:worker-opus-high`, later rounds → `karakam:worker-opus-xhigh`, with the Observer's findings or report path. Audit again; if the round changed only a plan or doc file, re-run only the lens that objected.
+  - At most three rounds. Still FAIL → `blocked`, clean up per `references/failure.md`, carry on with independent steps.
 
 The tick ends when every step of the batch is `done` or `blocked`.
 
 ## End of loop
 
-No eligible step left means one of three things:
+- All `done` → close with what was built and where.
+- `pending` left behind `blocked` steps → close with what's done, what's blocked and why (report paths).
+- `pending` left, none `blocked`, none eligible → circular `depends_on`: name the steps, call it a plan-level fault, tell the user Hacivat must fix the graph.
 
-- **Every step is `done`** → the job is complete. Close with what was built and where.
-- **`pending` steps remain, all behind `blocked` dependencies** → close with what's `done`, what's `blocked` and why (with report paths), so the user can step in.
-- **`pending` steps remain, none `blocked`, none eligible** → the dependency graph deadlocks (a circular `depends_on` Hacivat missed). Name the steps in a note, call it a plan-level fault, and tell the user Hacivat needs to fix the graph.
-
-In all three cases close the loop yourself — a loop left running burns a tick every interval saying "nothing to do":
-
-- **Dynamic `/loop`** (no interval): `ScheduleWakeup` with `stop: true`. While work remains, schedule the next tick at the minimum delay — each tick's work is already finished when it ends, so waiting only lets the prompt cache go cold.
-- **Fixed interval:** find this loop's job with `CronList` and delete it with `CronDelete`.
-
-This is the only place the run pauses for the user; never stop mid-loop to ask.
+Then stop the loop: a dynamic `/loop` (no interval) → `ScheduleWakeup` with `stop: true`; a fixed interval → `CronList`, then `CronDelete` its job. While work remains under a dynamic loop, schedule the next tick at the minimum delay. This is the only place the run stops for the user.
