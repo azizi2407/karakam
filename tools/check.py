@@ -87,7 +87,8 @@ if a.read_bytes() != b.read_bytes():
     err("the two handoff-contract.md copies differ — they must be byte-identical")
 
 # 4. manifests
-LISTING_URLS = ("documentationUrl", "supportUrl", "privacyPolicyUrl", "termsOfServiceUrl")
+# documentationUrl is left out on purpose: the directory takes the docs link from the README on its own.
+LISTING_URLS = ("supportUrl", "privacyPolicyUrl", "termsOfServiceUrl")
 try:
     plugin = json.loads((PLUGIN / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
     market = json.loads((ROOT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))
