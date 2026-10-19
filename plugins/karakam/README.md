@@ -43,3 +43,7 @@ The pane's state lives in the plugin's own store (`ledger`, `micro`, `isExpanded
 - **What it changes:** that one sub-agent stop. Nothing else, and never the same stop twice. Any error lets the stop through.
 - **How to turn it off:** set `KARAKAM_JUDGE=off`.
 - **Where it doesn't run:** where an organization manages Claude Code, `SubagentStop` hooks run only for plugins the organization lists in its managed settings. There the Coordinator sends a half-finished Worker back itself, at the cost of a few more turns.
+
+## Support and policies
+
+Questions and bug reports: <https://github.com/azizi2407/karakam/issues>. [Privacy policy](https://github.com/azizi2407/karakam/blob/main/PRIVACY.md) · [Terms of use](https://github.com/azizi2407/karakam/blob/main/TERMS.md) · MIT License.

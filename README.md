@@ -207,3 +207,5 @@ The skills' instructions are in English, but **everything they produce follows y
 ## License
 
 MIT
+
+[Privacy policy](PRIVACY.md) · [Terms of use](TERMS.md) · Questions and bug reports: [issues](https://github.com/azizi2407/karakam/issues)
