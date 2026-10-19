@@ -3,7 +3,7 @@
 `claude plugin eval` grades behavior, but it forces an OS sandbox on child sessions (where that sandbox can't start, child Bash dies) and it doesn't split cost by sub-agent. This benchmark drives headless `claude -p` directly so both halves can be measured end to end — cost per role, and whether the product actually works.
 
 ```bash
-cd plugins/karakam/evals/bench
+cd bench
 python3 run.py karagoz --label <name> --runs 3                      # clean run: fixed 3-step plan
 python3 run.py karagoz --scenario refactor --label <name> --runs 3  # hard run: forces refactor rounds
 python3 run.py karagoz --scenario fifo --label <name> --max-ticks 10 # large run: 6 steps, tricky rules

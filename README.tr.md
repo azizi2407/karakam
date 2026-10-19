@@ -164,7 +164,7 @@ Bir adım refactor turlarından sonra da geçemezse, loop seni bekleyip durmaz. 
 
 ## Maliyet ve benchmark'lar
 
-Tahmin değil, ölçüm. [`plugins/karakam/evals/bench`](plugins/karakam/evals/bench) iki yarıyı sabit görevlerde headless koşturur, faturayı rollere böler ve ürünü ajanların hiç görmediği gizli kabul testleriyle notlar. Fiyatlar Opus 5.5'in API liste fiyatları; abonelikteysen bunları bir koşunun kullanımından ne kadar yiyeceği olarak oku.
+Tahmin değil, ölçüm. [`bench`](bench) iki yarıyı sabit görevlerde headless koşturur, faturayı rollere böler ve ürünü ajanların hiç görmediği gizli kabul testleriyle notlar. Fiyatlar Opus 5.5'in API liste fiyatları; abonelikteysen bunları bir koşunun kullanımından ne kadar yiyeceği olarak oku.
 
 | Benchmark | 1.1 (Sonnet/Haiku alt-ajanlar) | 1.2 (her şey Opus'ta, effort ayarlı) | 1.3 (adımlar `low`'dan başlar) | 1.4 (Sonnet 5.5 Worker'lar `high`'da) |
 |---|---|---|---|---|

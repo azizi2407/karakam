@@ -108,8 +108,12 @@ export const register: Register = on => {
   // The skill starting (every /loop tick) is the cue to show the pane.
   on('tool.call', { tool: 'Skill' }, async ($, e, next) => {
     if (/(^|:)karagoz$/.test(e.skill)) {
-      const opened = await openPane($)
-      if (!opened.isPlaced) $.ui.status('karagoz running — /karakam-progress shows its steps')
+      try {
+        const opened = await openPane($)
+        if (!opened.isPlaced) $.ui.status('karagoz running — /karakam-progress shows its steps')
+      } catch {
+        // the pane is a view: a failure here never touches the call
+      }
     }
     return next(e)
   })
@@ -117,9 +121,13 @@ export const register: Register = on => {
   on('tool.call', async ($, e, next) => {
     const ran = await next(e)
     if (e.agentId === undefined) {
-      if (e.tool === 'Read' || e.tool === 'Edit' || e.tool === 'Write') await discover($, e.file_path)
-      else if (e.tool === 'Bash' && e.command.includes('progress.md')) await discover($, e.command)
-      await refresh($)
+      try {
+        if (e.tool === 'Read' || e.tool === 'Edit' || e.tool === 'Write') await discover($, e.file_path)
+        else if (e.tool === 'Bash' && e.command.includes('progress.md')) await discover($, e.command)
+        await refresh($)
+      } catch {
+        // the pane is a view: the call's result passes on regardless
+      }
     }
     return ran
   })
@@ -130,25 +138,40 @@ export const register: Register = on => {
     const git = gitStep(e.command)
     if (!git || !e.tool_use_id) return next(e)
     const id = e.tool_use_id
-    const started = await $.clock.now()
-    await update($, micro, list => [...list, { ...git, id, status: 'running' as const, startedAt: started }])
+    let started = 0
+    try {
+      started = await $.clock.now()
+      await update($, micro, list => [...list, { ...git, id, status: 'running' as const, startedAt: started }])
+    } catch {
+      // the pane is a view: the checkpoint runs regardless
+    }
     const ran = await next(e)
-    const ms = (await $.clock.now()) - started
-    const status: KarakamMicro['status'] = ran.deny || ran.isError ? 'fail' : 'pass'
-    await update($, micro, list => list.map(m => (m.id === id ? { ...m, status, ms } : m)))
+    try {
+      const ms = (await $.clock.now()) - started
+      const status: KarakamMicro['status'] = ran.deny || ran.isError ? 'fail' : 'pass'
+      await update($, micro, list => list.map(m => (m.id === id ? { ...m, status, ms } : m)))
+    } catch {
+      // as above
+    }
     return ran
   })
 
   // Worker and Observer runs start here…
-  on('agent.spawn', async ($, e, next) => {
-    const spawned = await next(e)
-    const kind = classifySpawn(e.subagentType, e.prompt, e.description)
+  // Observe only: the spawn event goes on unchanged and its result comes back as is.
+  // Its parameters have names of their own so that is plain to see.
+  on('agent.spawn', async (spawnEngine, spawnEvent, passSpawn) => {
+    const spawned = await passSpawn(spawnEvent)
+    const kind = classifySpawn(spawnEvent.subagentType, spawnEvent.prompt, spawnEvent.description)
     if (kind && !spawned.deny && spawned.agentId) {
-      await discover($, e.prompt)
-      const id = spawned.agentId
-      const startedAt = await $.clock.now()
-      const model = spawned.model
-      await update($, micro, list => [...list, { ...kind, id, status: 'running' as const, startedAt, model }].slice(-300))
+      try {
+        await discover(spawnEngine, spawnEvent.prompt)
+        const id = spawned.agentId
+        const startedAt = await spawnEngine.clock.now()
+        const model = spawned.model
+        await update(spawnEngine, micro, list => [...list, { ...kind, id, status: 'running' as const, startedAt, model }].slice(-300))
+      } catch {
+        // the pane is a view: the spawn's result passes on regardless
+      }
     }
     return spawned
   })
