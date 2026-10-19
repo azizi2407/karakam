@@ -207,3 +207,5 @@ Skill'lerin talimatları İngilizce, ama **ürettikleri her şey seni takip eder
 ## Lisans
 
 MIT
+
+[Gizlilik politikası](PRIVACY.md) · [Kullanım şartları](TERMS.md) · Soru ve hata bildirimi: [issues](https://github.com/azizi2407/karakam/issues)

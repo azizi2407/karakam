@@ -12,6 +12,9 @@ Checks:
   - the two handoff-contract.md copies are byte-identical;
   - plugin.json and marketplace.json agree on name, version and description,
     and every JSON manifest parses;
+  - the directory listing links in plugin.json are https URLs, the ones into
+    this repository name files that exist, and none of them sits in
+    marketplace.json (`claude plugin validate` reports them there as unknown);
   - README.md and README.tr.md have the same structure (headings, code blocks,
     table rows);
   - every eval case.yaml parses;
@@ -20,6 +23,7 @@ Checks:
     a worktree whose commit or merge failed.
 """
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -83,6 +87,7 @@ if a.read_bytes() != b.read_bytes():
     err("the two handoff-contract.md copies differ — they must be byte-identical")
 
 # 4. manifests
+LISTING_URLS = ("documentationUrl", "supportUrl", "privacyPolicyUrl", "termsOfServiceUrl")
 try:
     plugin = json.loads((PLUGIN / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
     market = json.loads((ROOT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))
@@ -96,6 +101,17 @@ else:
         for key in ("version", "description"):
             if entry.get(key) != plugin.get(key):
                 err(f"marketplace.json {key} {entry.get(key)!r} != plugin.json {plugin.get(key)!r}")
+        for key in LISTING_URLS:
+            url = plugin.get(key)
+            if key in entry:
+                err(f"marketplace.json: {key} belongs only in plugin.json")
+            if url is None:
+                err(f"plugin.json: {key} missing — the directory listing shows it")
+            elif not url.startswith("https://"):
+                err(f"plugin.json: {key} {url!r} is not an https URL")
+            elif m := re.match(r"https://github\.com/azizi2407/karakam/blob/main/(.+)", url):
+                if not (ROOT / m[1]).is_file():
+                    err(f"plugin.json: {key} points at {m[1]}, which doesn't exist")
 
 # 5. README parity (same number of headings at each level)
 def outline(path):
