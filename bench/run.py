@@ -36,8 +36,8 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-PLUGIN = HERE.parents[1]  # plugins/karakam
-REPO = HERE.parents[3]
+REPO = HERE.parent
+PLUGIN = REPO / "plugins" / "karakam"
 RESULTS = HERE / "results"
 # karagoz scenarios: <dir>/plan (+ optional <dir>/base, the codebase the plan
 # starts from) and <dir>/hidden/test_hidden.py

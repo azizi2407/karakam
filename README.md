@@ -164,7 +164,7 @@ When a step can't pass after its refactor rounds, the loop doesn't stall waiting
 
 ## Cost and benchmarks
 
-Measured, not guessed. [`plugins/karakam/evals/bench`](plugins/karakam/evals/bench) runs both halves headless on fixed tasks, splits the bill by role, and grades the product with hidden acceptance tests the agents never see. Prices are Opus 5.5 API list prices; on a subscription, read them as how much of your usage a run takes.
+Measured, not guessed. [`bench`](bench) runs both halves headless on fixed tasks, splits the bill by role, and grades the product with hidden acceptance tests the agents never see. Prices are Opus 5.5 API list prices; on a subscription, read them as how much of your usage a run takes.
 
 | Benchmark | 1.1 (Sonnet/Haiku sub-agents) | 1.2 (all Opus, effort-tuned) | 1.3 (steps start at `low`) | 1.4 (Sonnet 5.5 Workers at `high`) |
 |---|---|---|---|---|
